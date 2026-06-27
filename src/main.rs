@@ -1,15 +1,11 @@
-mod cli;
-mod ndi;
-mod output;
-
 use anyhow::{anyhow, Result};
 use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
 
-use cli::SourceMatch;
-use ndi::{CaptureResult, Finder, Ndi, Receiver, Source};
-use output::{BgraFrame, SharedTextureOutput};
+use ndi_share::cli::{self, SourceMatch};
+use ndi_share::ndi::{CaptureResult, Finder, Ndi, Receiver, Source};
+use ndi_share::output::{self, output_kind, BgraFrame, SharedTextureOutput};
 
 fn main() -> Result<()> {
     let args = cli::parse();
@@ -32,7 +28,7 @@ fn main() -> Result<()> {
     let server_name = args.name.clone().unwrap_or_else(|| source.name.clone());
 
     let receiver = Receiver::new(&ndi, &source, "ndi-share")?;
-    let mut out = make_output(&server_name)?;
+    let mut out = output::make_output(&server_name)?;
 
     println!(
         "Publishing '{}' as {} server '{}'. Ctrl-C to stop.",
@@ -88,39 +84,6 @@ fn prompt_select(sources: &[Source]) -> Result<Source> {
     match cli::parse_selection(&line, sources.len()) {
         Ok(i) => Ok(sources[i].clone()),
         Err(e) => Err(anyhow!("invalid selection: {e}")),
-    }
-}
-
-#[cfg(target_os = "macos")]
-fn make_output(name: &str) -> Result<Box<dyn SharedTextureOutput>> {
-    Ok(Box::new(output::syphon::SyphonOutput::new(name)?))
-}
-
-#[cfg(target_os = "windows")]
-fn make_output(name: &str) -> Result<Box<dyn SharedTextureOutput>> {
-    Ok(Box::new(output::spout::SpoutOutput::new(name)?))
-}
-
-#[cfg(not(any(target_os = "macos", target_os = "windows")))]
-fn make_output(_name: &str) -> Result<Box<dyn SharedTextureOutput>> {
-    Err(anyhow!(
-        "no shared-texture backend on this platform (macOS=Syphon, Windows=Spout)"
-    ))
-}
-
-/// Human-facing name of the active shared-texture protocol.
-fn output_kind() -> &'static str {
-    #[cfg(target_os = "macos")]
-    {
-        "Syphon"
-    }
-    #[cfg(target_os = "windows")]
-    {
-        "Spout"
-    }
-    #[cfg(not(any(target_os = "macos", target_os = "windows")))]
-    {
-        "shared-texture"
     }
 }
 

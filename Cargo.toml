@@ -8,6 +8,10 @@ description = "Receive an NDI source and republish it as a Syphon Metal texture 
 name = "ndi-share"
 path = "src/main.rs"
 
+[lib]
+name = "ndi_share"
+path = "src/lib.rs"
+
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 ctrlc = "3"
