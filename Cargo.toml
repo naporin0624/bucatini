@@ -1,0 +1,17 @@
+[package]
+name = "ndi-share"
+version = "0.1.0"
+edition = "2021"
+description = "Receive an NDI source and republish it as a Syphon Metal texture (macOS)"
+
+[[bin]]
+name = "ndi-share"
+path = "src/main.rs"
+
+[dependencies]
+clap = { version = "4", features = ["derive"] }
+ctrlc = "3"
+anyhow = "1"
+
+[build-dependencies]
+cc = "1"
