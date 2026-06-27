@@ -1,0 +1,111 @@
+use clap::Parser;
+
+#[derive(Parser, Debug)]
+#[command(name = "ndi-share", about = "Republish an NDI source as a Syphon Metal texture")]
+struct RawArgs {
+    /// List discovered NDI sources and exit
+    #[arg(long)]
+    list: bool,
+    /// NDI source name (case-insensitive substring match)
+    #[arg(long)]
+    source: Option<String>,
+    /// Syphon server name to publish under (default: the NDI source name)
+    #[arg(long)]
+    name: Option<String>,
+    /// Discovery / capture timeout in milliseconds
+    #[arg(long, default_value_t = 5000)]
+    timeout_ms: u32,
+    /// Verbose logging (resolution, fps)
+    #[arg(long)]
+    verbose: bool,
+}
+
+#[derive(Debug)]
+#[allow(dead_code)]
+pub struct Args {
+    pub list: bool,
+    pub source: Option<String>,
+    pub name: Option<String>,
+    pub timeout_ms: u32,
+    pub verbose: bool,
+}
+
+#[allow(dead_code)]
+pub fn parse() -> Args {
+    let r = RawArgs::parse();
+    Args {
+        list: r.list,
+        source: r.source,
+        name: r.name,
+        timeout_ms: r.timeout_ms,
+        verbose: r.verbose,
+    }
+}
+
+#[derive(Debug)]
+pub enum SourceMatch {
+    None,
+    One(usize),
+    Many(Vec<usize>),
+}
+
+pub fn match_source(names: &[String], query: &str) -> SourceMatch {
+    let q = query.to_lowercase();
+    if let Some(i) = names.iter().position(|n| n.to_lowercase() == q) {
+        return SourceMatch::One(i);
+    }
+    let hits: Vec<usize> = names
+        .iter()
+        .enumerate()
+        .filter(|(_, n)| n.to_lowercase().contains(&q))
+        .map(|(i, _)| i)
+        .collect();
+    match hits.len() {
+        0 => SourceMatch::None,
+        1 => SourceMatch::One(hits[0]),
+        _ => SourceMatch::Many(hits),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn names() -> Vec<String> {
+        vec![
+            "STUDIO (Camera 1)".to_string(),
+            "STUDIO (Camera 2)".to_string(),
+            "LAPTOP (Screen)".to_string(),
+        ]
+    }
+
+    #[test]
+    fn no_match_returns_none() {
+        assert!(matches!(match_source(&names(), "xyz"), SourceMatch::None));
+    }
+
+    #[test]
+    fn unique_substring_returns_one() {
+        match match_source(&names(), "laptop") {
+            SourceMatch::One(i) => assert_eq!(i, 2),
+            other => panic!("expected One, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn ambiguous_substring_returns_many() {
+        match match_source(&names(), "camera") {
+            SourceMatch::Many(v) => assert_eq!(v, vec![0, 1]),
+            other => panic!("expected Many, got {:?}", other),
+        }
+    }
+
+    #[test]
+    fn exact_match_wins_over_substring() {
+        let n = vec!["Cam".to_string(), "Cam (extra)".to_string()];
+        match match_source(&n, "cam") {
+            SourceMatch::One(i) => assert_eq!(i, 0),
+            other => panic!("expected One, got {:?}", other),
+        }
+    }
+}
