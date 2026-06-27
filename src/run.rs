@@ -1,5 +1,6 @@
 //! Capture loop core shared by the CLI and GUI.
 
+use crate::ndi::{CaptureResult, Receiver};
 use crate::output::{BgraFrame, SharedTextureOutput};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 
@@ -80,6 +81,25 @@ pub fn run_capture_loop<S: FrameStream>(
         }
     }
     Ok(())
+}
+
+impl FrameStream for Receiver<'_> {
+    fn capture_into(&self, timeout_ms: u32, on_frame: &mut dyn FnMut(BgraFrame)) -> CaptureSignal {
+        match self.capture(timeout_ms) {
+            CaptureResult::Video(frame) => {
+                let bgra = BgraFrame {
+                    data: frame.data(),
+                    width: frame.width(),
+                    height: frame.height(),
+                    stride: frame.stride(),
+                };
+                on_frame(bgra);
+                CaptureSignal::Got
+            }
+            CaptureResult::Error => CaptureSignal::Error,
+            CaptureResult::None => CaptureSignal::Idle,
+        }
+    }
 }
 
 #[cfg(test)]
