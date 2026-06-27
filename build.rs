@@ -1,8 +1,12 @@
 fn main() {
-    // Link the Homebrew-installed NDI runtime.
-    println!("cargo:rustc-link-search=native=/usr/local/lib");
+    // Link the NDI runtime; search both the macOS default prefix and the
+    // Homebrew arm64 prefix so the build works on machines where libndi
+    // lives under either location.
+    for dir in ["/usr/local/lib", "/opt/homebrew/lib"] {
+        println!("cargo:rustc-link-search=native={dir}");
+        println!("cargo:rustc-link-arg=-Wl,-rpath,{dir}");
+    }
     println!("cargo:rustc-link-lib=dylib=ndi");
-    println!("cargo:rustc-link-arg=-Wl,-rpath,/usr/local/lib");
 
     #[cfg(target_os = "macos")]
     build_macos();

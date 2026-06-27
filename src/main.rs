@@ -107,6 +107,13 @@ fn run_loop(receiver: &Receiver, out: &mut dyn SharedTextureOutput, verbose: boo
     while running.load(Ordering::SeqCst) {
         match receiver.capture(1000) {
             CaptureResult::Video(frame) => {
+                let needed = (frame.stride() as usize).saturating_mul(frame.height() as usize);
+                if frame.data().len() < needed {
+                    if verbose {
+                        eprintln!("skipping malformed frame: data {} < needed {}", frame.data().len(), needed);
+                    }
+                    continue;
+                }
                 let dims = (frame.width(), frame.height());
                 if verbose && dims != last_dims {
                     eprintln!("frame {}x{} stride={}", dims.0, dims.1, frame.stride());
