@@ -1,3 +1,4 @@
+mod ndi;
 mod cli;
 
 fn main() {
