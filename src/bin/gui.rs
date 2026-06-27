@@ -70,7 +70,12 @@ impl GuiApp {
                 self.disco_rx = None;
                 self.status = format!("Discovery failed: {e}");
             }
-            Err(_) => {} // nothing yet
+            Err(mpsc::TryRecvError::Empty) => {} // nothing yet
+            Err(mpsc::TryRecvError::Disconnected) => {
+                self.discovering = false;
+                self.disco_rx = None;
+                self.status = "Discovery thread exited unexpectedly.".to_owned();
+            }
         }
     }
 }
