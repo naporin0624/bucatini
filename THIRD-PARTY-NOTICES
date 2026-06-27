@@ -1,0 +1,11 @@
+THIRD-PARTY SOFTWARE NOTICES AND INFORMATION
+
+Syphon Framework
+https://github.com/Syphon/Syphon-Framework
+Copyright 2010 bangnoise (Tom Butterworth) & vade (Anton Marini).
+Licensed under the BSD 3-Clause License. See the Syphon-Framework source for
+the full license text.
+
+NDI(R) is a registered trademark of Vizrt NV. This tool links against the NDI
+runtime (libndi) installed separately by the user; no NDI SDK code is
+redistributed here.
