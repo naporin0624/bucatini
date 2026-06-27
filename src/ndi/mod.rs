@@ -1,3 +1,5 @@
+#![allow(dead_code)]
+
 pub mod sys;
 
 use anyhow::{anyhow, Result};
@@ -157,7 +159,13 @@ impl VideoFrame<'_> {
         self.frame.line_stride_or_size as u32
     }
     pub fn data(&self) -> &[u8] {
-        let len = self.stride() as usize * self.height() as usize;
+        if self.frame.p_data.is_null() {
+            return &[];
+        }
+        let len = match (self.stride() as usize).checked_mul(self.height() as usize) {
+            Some(n) => n,
+            None => return &[],
+        };
         unsafe { std::slice::from_raw_parts(self.frame.p_data, len) }
     }
 }

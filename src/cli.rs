@@ -43,12 +43,14 @@ pub fn parse() -> Args {
 }
 
 #[derive(Debug)]
+#[allow(dead_code)]
 pub enum SourceMatch {
     None,
     One(usize),
     Many(Vec<usize>),
 }
 
+#[allow(dead_code)]
 pub fn match_source(names: &[String], query: &str) -> SourceMatch {
     let q = query.to_lowercase();
     if let Some(i) = names.iter().position(|n| n.to_lowercase() == q) {
@@ -67,6 +69,7 @@ pub fn match_source(names: &[String], query: &str) -> SourceMatch {
     }
 }
 
+#[allow(dead_code)]
 pub fn parse_selection(input: &str, count: usize) -> Result<usize, String> {
     let n: usize = input
         .trim()
