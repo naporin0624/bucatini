@@ -77,6 +77,97 @@ impl Drop for Finder<'_> {
     }
 }
 
+pub struct Receiver<'a> {
+    handle: sys::NDIlib_recv_instance_t,
+    _ndi: &'a Ndi,
+}
+
+impl<'a> Receiver<'a> {
+    pub fn new(ndi: &'a Ndi, source: &Source, recv_name: &str) -> Result<Receiver<'a>> {
+        let c_name = std::ffi::CString::new(source.name.clone())?;
+        let c_url = std::ffi::CString::new(source.url.clone())?;
+        let c_recv = std::ffi::CString::new(recv_name)?;
+        let create = sys::NDIlib_recv_create_v3_t {
+            source_to_connect_to: sys::NDIlib_source_t {
+                p_ndi_name: c_name.as_ptr(),
+                p_url_address: c_url.as_ptr(),
+            },
+            color_format: sys::NDIlib_recv_color_format_BGRX_BGRA,
+            bandwidth: sys::NDIlib_recv_bandwidth_highest,
+            allow_video_fields: false,
+            p_ndi_recv_name: c_recv.as_ptr(),
+        };
+        let handle = unsafe { sys::NDIlib_recv_create_v3(&create) };
+        if handle.is_null() {
+            return Err(anyhow!("NDIlib_recv_create_v3 returned null"));
+        }
+        // c_name/c_url/c_recv are copied by the SDK during create; safe to drop now.
+        Ok(Receiver { handle, _ndi: ndi })
+    }
+
+    pub fn capture(&self, timeout_ms: u32) -> CaptureResult<'_> {
+        let mut frame: sys::NDIlib_video_frame_v2_t = unsafe { std::mem::zeroed() };
+        let t = unsafe {
+            sys::NDIlib_recv_capture_v2(
+                self.handle,
+                &mut frame,
+                ptr::null_mut(),
+                ptr::null_mut(),
+                timeout_ms,
+            )
+        };
+        match t {
+            sys::NDIlib_frame_type_video => CaptureResult::Video(VideoFrame {
+                receiver: self.handle,
+                frame,
+                _marker: std::marker::PhantomData,
+            }),
+            sys::NDIlib_frame_type_error => CaptureResult::Error,
+            _ => CaptureResult::None,
+        }
+    }
+}
+
+impl Drop for Receiver<'_> {
+    fn drop(&mut self) {
+        unsafe { sys::NDIlib_recv_destroy(self.handle) };
+    }
+}
+
+pub enum CaptureResult<'a> {
+    Video(VideoFrame<'a>),
+    None,
+    Error,
+}
+
+pub struct VideoFrame<'a> {
+    receiver: sys::NDIlib_recv_instance_t,
+    frame: sys::NDIlib_video_frame_v2_t,
+    _marker: std::marker::PhantomData<&'a Receiver<'a>>,
+}
+
+impl VideoFrame<'_> {
+    pub fn width(&self) -> u32 {
+        self.frame.xres as u32
+    }
+    pub fn height(&self) -> u32 {
+        self.frame.yres as u32
+    }
+    pub fn stride(&self) -> u32 {
+        self.frame.line_stride_or_size as u32
+    }
+    pub fn data(&self) -> &[u8] {
+        let len = self.stride() as usize * self.height() as usize;
+        unsafe { std::slice::from_raw_parts(self.frame.p_data, len) }
+    }
+}
+
+impl Drop for VideoFrame<'_> {
+    fn drop(&mut self) {
+        unsafe { sys::NDIlib_recv_free_video_v2(self.receiver, &self.frame) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
