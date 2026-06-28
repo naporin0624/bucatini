@@ -392,6 +392,8 @@ impl eframe::App for GuiApp {
                 .unwrap_or_else(|| "(none)".to_owned());
             ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
                 egui::ComboBox::from_id_salt("ndi_source")
+                    .width(220.0)
+                    .truncate()
                     .selected_text(label)
                     .show_ui(ui, |ui| {
                         for (i, s) in sources.iter().enumerate() {
