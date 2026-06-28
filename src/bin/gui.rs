@@ -392,7 +392,7 @@ impl eframe::App for GuiApp {
                 .unwrap_or_else(|| "(none)".to_owned());
             ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
                 egui::ComboBox::from_id_salt("ndi_source")
-                    .width(220.0)
+                    .width(200.0)
                     .truncate()
                     .selected_text(label)
                     .show_ui(ui, |ui| {
@@ -445,7 +445,7 @@ impl eframe::App for GuiApp {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([360.0, 170.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 170.0]),
         ..Default::default()
     };
     eframe::run_native(
