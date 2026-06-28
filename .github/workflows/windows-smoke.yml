@@ -1,0 +1,60 @@
+name: Windows Smoke
+
+# On-demand compile check for the experimental Windows/Spout backend.
+# Run manually from the Actions tab — it is NOT triggered by PRs/pushes so it
+# can never block normal work. Hard timeouts (job + installer) guarantee it
+# stops in minutes instead of the 4-6h hang the old auto-run had.
+#
+# Neither maintainer machine runs Windows, so this only compile-verifies the
+# Spout code path; runtime behavior still needs a real Windows host.
+
+on:
+  workflow_dispatch:
+
+jobs:
+  windows-build:
+    name: Windows Spout compile check
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Spout2 SDK
+        shell: pwsh
+        run: ./scripts/fetch-spout2.ps1
+
+      - name: Install NDI SDK (with a hard timeout)
+        shell: pwsh
+        run: |
+          # build.rs links Processing.NDI.Lib.x64.lib from the NDI SDK.
+          # The silent installer is the documented install path, but it has hung
+          # indefinitely in CI before, so kill it if it does not finish in time.
+          # NOTE: if this URL or the silent flags stop working, a maintainer with
+          # a Windows host should adjust this single step.
+          $url = "https://downloads.ndi.tv/SDK/NDI_SDK/NDI%206%20SDK.exe"
+          $exe = "$env:RUNNER_TEMP\NDI_SDK.exe"
+          Invoke-WebRequest -Uri $url -OutFile $exe
+          if ((Get-Item $exe).Length -lt 1MB) {
+            Write-Error "Downloaded NDI installer looks wrong (<1MB) — URL may have changed."
+            exit 1
+          }
+          $p = Start-Process -FilePath $exe `
+            -ArgumentList "/VERYSILENT","/SUPPRESSMSGBOXES","/NORESTART" -PassThru
+          if (-not $p.WaitForExit(600000)) {
+            $p.Kill()
+            Write-Error "NDI installer did not finish within 10 minutes — aborting."
+            exit 1
+          }
+          $sdk = "C:\Program Files\NDI\NDI 6 SDK"
+          if (-not (Test-Path "$sdk\Lib\x64\Processing.NDI.Lib.x64.lib")) {
+            Write-Error "NDI SDK import library not found at $sdk\Lib\x64"
+            exit 1
+          }
+          "NDI_SDK_DIR=$sdk" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build (Spout backend, release)
+        run: cargo build --release --verbose

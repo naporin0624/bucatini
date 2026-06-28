@@ -71,7 +71,9 @@ jobs:
           NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
-          stage="ndi-share-${TAG}-${NAME}"
+          # TAG is already "ndi-share-vX.Y.Z" (release-please package tag), so the
+          # stage name is just "${TAG}-${NAME}" — no extra "ndi-share-" prefix.
+          stage="${TAG}-${NAME}"
           mkdir -p "$stage"
           cp "target/${TARGET}/release/ndi-share" "$stage/"
           cp "target/${TARGET}/release/ndi-share-gui" "$stage/"
