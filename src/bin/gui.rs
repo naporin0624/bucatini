@@ -436,11 +436,16 @@ impl eframe::App for GuiApp {
             self.stop();
         }
 
-        // Running indicator (accent dot) + info line.
+        // Status row: always present (running=accent dot, idle=dim) so the line
+        // doesn't appear/disappear and shift the layout vertically.
         if self.running.is_some() {
             ui.colored_label(egui::Color32::from_rgb(0x39, 0x96, 0xFF), "\u{25CF} Running");
+        } else {
+            ui.colored_label(egui::Color32::from_rgb(0x69, 0x69, 0x69), "\u{25CB} Idle");
         }
-        ui.label(format!("info: {}", self.info_line()));
+        // Info line wraps within the window width, so a long status (frame count +
+        // source name) never widens the window — prevents horizontal layout shift.
+        ui.add(egui::Label::new(format!("info: {}", self.info_line())).wrap());
 
         if let Some(tray) = &self.tray {
             tray.status.set_text(format!("ndi-share — {}", self.info_line()));
@@ -452,7 +457,9 @@ impl eframe::App for GuiApp {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 170.0]),
+        // Height sized for the running state (status line + 2-line wrapped info)
+        // so the window doesn't grow/shrink between idle and running.
+        viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 200.0]),
         ..Default::default()
     };
     eframe::run_native(
