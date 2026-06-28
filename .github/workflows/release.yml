@@ -1,0 +1,92 @@
+name: Release
+
+# release-please manages versioning from conventional commits: it opens a
+# release PR, and merging it creates the GitHub release + tag. The build job
+# then compiles macOS binaries and attaches them to that release.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release-please:
+    runs-on: ubuntu-latest
+    outputs:
+      release_created: ${{ steps.release.outputs.release_created }}
+      tag_name: ${{ steps.release.outputs.tag_name }}
+    steps:
+      - uses: googleapis/release-please-action@v4
+        id: release
+        with:
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
+
+  build:
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - os: macos-14
+            target: aarch64-apple-darwin
+            name: macos-arm64
+          - os: macos-13
+            target: x86_64-apple-darwin
+            name: macos-x64
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    name: Build (${{ matrix.name }})
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install libndi (NDI runtime)
+        run: brew install libndi
+
+      - name: Build Syphon.framework
+        run: ./scripts/setup-syphon.sh
+
+      - name: Fetch LINE Seed JP (bundled by the GUI)
+        run: ./scripts/fetch-fonts.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          targets: ${{ matrix.target }}
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build release binaries (CLI + GUI)
+        run: cargo build --release --features gui --target ${{ matrix.target }}
+
+      - name: Package
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+          TARGET: ${{ matrix.target }}
+          NAME: ${{ matrix.name }}
+        run: |
+          set -euo pipefail
+          stage="ndi-share-${TAG}-${NAME}"
+          mkdir -p "$stage"
+          cp "target/${TARGET}/release/ndi-share" "$stage/"
+          cp "target/${TARGET}/release/ndi-share-gui" "$stage/"
+          cp -R vendor/Syphon.framework "$stage/"
+          cp README.md README.en.md THIRD-PARTY-NOTICES "$stage/"
+          # Let the binaries find the colocated Syphon.framework at runtime.
+          # (Syphon's install name is @rpath/...; libndi must be installed via
+          # `brew install libndi`, per the README.)
+          install_name_tool -add_rpath @loader_path "$stage/ndi-share"
+          install_name_tool -add_rpath @loader_path "$stage/ndi-share-gui"
+          tar -czf "${stage}.tar.gz" "$stage"
+          echo "ASSET=${stage}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Upload to the GitHub release
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release upload "$TAG" "$ASSET" --clobber

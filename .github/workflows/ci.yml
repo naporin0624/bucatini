@@ -1,0 +1,39 @@
+name: CI
+
+# Fast, reliable PR/main checks on the verified platform (macOS).
+# Windows/Spout is experimental and unverified; it is intentionally NOT built
+# here — the old NDI-SDK silent installer hung for hours and blocked every PR.
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  macos:
+    name: macOS build & test
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install libndi (NDI runtime)
+        run: brew install libndi
+
+      - name: Build Syphon.framework
+        run: ./scripts/setup-syphon.sh
+
+      - name: Fetch LINE Seed JP (bundled by the GUI)
+        run: ./scripts/fetch-fonts.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Test
+        run: cargo test --verbose
+
+      - name: Build CLI + GUI
+        run: cargo build --features gui --verbose
