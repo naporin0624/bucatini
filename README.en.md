@@ -38,6 +38,30 @@ ndi-share --source Cam --name "MyFeed"    # custom Syphon server name
 Open any Syphon client (Resolume, Syphon Recorder, OBS with Syphon plugin) to
 receive the texture. Stop with Ctrl-C.
 
+## GUI (launcher)
+
+A minimal GUI launcher `ndi-share-gui` (built with [egui](https://github.com/emilk/egui))
+ships alongside the CLI and exposes the same flow on screen: pick a source from a
+dropdown, set the server name, and **Start / Stop**.
+
+```bash
+# The GUI is a separate binary behind the `gui` feature (not part of the CLI build)
+cargo run --release --features gui --bin ndi-share-gui
+# or build then run
+cargo build --release --features gui --bin ndi-share-gui
+./target/release/ndi-share-gui
+```
+
+- **Source** — pick a discovered NDI source from the dropdown (**Refresh** to re-scan).
+- **Name** — Syphon server name (defaults to the source name; once you edit it by
+  hand it no longer auto-follows the selection).
+- **Start / Stop** — begin/end republishing; the received frame count updates live.
+
+Discovery and the receive loop both run on worker threads, so the UI never freezes.
+On macOS the GUI needs the same prerequisites as the CLI (Xcode, Metal Toolchain,
+`vendor/Syphon.framework`).
+
 ## Scope
 
-v1 is macOS/Syphon only. Spout/Windows is not yet implemented.
+- **macOS / Syphon** — verified on real hardware (v1), CLI and GUI.
+- **Windows / Spout** — compile-verified in CI only (no real-hardware test yet).
