@@ -5,44 +5,28 @@ use clap::Parser;
     name = "bucatini",
     about = "Republish an NDI source as a Syphon Metal texture"
 )]
-struct RawArgs {
-    /// List discovered NDI sources and exit
-    #[arg(long)]
-    list: bool,
-    /// NDI source name (case-insensitive substring match)
-    #[arg(long)]
-    source: Option<String>,
-    /// Syphon server name to publish under (default: the NDI source name)
-    #[arg(long)]
-    name: Option<String>,
-    /// Discovery / capture timeout in milliseconds
-    #[arg(long, default_value_t = 5000)]
-    timeout_ms: u32,
-    /// Verbose logging (resolution, fps)
-    #[arg(long)]
-    verbose: bool,
-}
-
-#[derive(Debug)]
 #[allow(dead_code)]
 pub struct Args {
+    /// List discovered NDI sources and exit
+    #[arg(long)]
     pub list: bool,
+    /// NDI source name (case-insensitive substring match)
+    #[arg(long)]
     pub source: Option<String>,
+    /// Syphon server name to publish under (default: the NDI source name)
+    #[arg(long)]
     pub name: Option<String>,
+    /// Discovery / capture timeout in milliseconds
+    #[arg(long, default_value_t = 5000)]
     pub timeout_ms: u32,
+    /// Verbose logging (resolution, fps)
+    #[arg(long)]
     pub verbose: bool,
 }
 
 #[allow(dead_code)]
 pub fn parse() -> Args {
-    let r = RawArgs::parse();
-    Args {
-        list: r.list,
-        source: r.source,
-        name: r.name,
-        timeout_ms: r.timeout_ms,
-        verbose: r.verbose,
-    }
+    Args::parse()
 }
 
 #[derive(Debug)]
