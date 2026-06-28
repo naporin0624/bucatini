@@ -319,6 +319,11 @@ fn spawn_discovery(tx: Sender<DiscoverMsg>, ctx: egui::Context) {
     });
 }
 
+fn show_window(ctx: &egui::Context) {
+    ctx.send_viewport_cmd(egui::ViewportCommand::Visible(true));
+    ctx.send_viewport_cmd(egui::ViewportCommand::Focus);
+}
+
 // NOTE: eframe 0.35's `App` trait requires `fn ui(&mut self, ui: &mut egui::Ui,
 // frame: &mut Frame)` — the older `fn update(&mut self, ctx, frame)` does NOT
 // exist in 0.35. The `ui` param IS the central panel's Ui (the framework wraps
@@ -329,16 +334,29 @@ impl eframe::App for GuiApp {
         self.poll_discovery();
         self.poll_running();
 
-        // Drain tray menu clicks.
+        // ✕ hides to tray instead of quitting; the receive worker keeps running.
+        if ui.ctx().input(|i| i.viewport().close_requested()) {
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
+            ui.ctx().send_viewport_cmd(egui::ViewportCommand::Visible(false));
+        }
+
+        // Quit / show from the tray menu.
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
             let is_quit = self.tray.as_ref().map_or(false, |t| ev.id == t.quit_id);
+            let is_show = self.tray.as_ref().map_or(false, |t| ev.id == t.status.id());
             if is_quit {
-                self.stop(); // signal + join any running worker
+                self.stop();
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
+            } else if is_show {
+                show_window(ui.ctx());
             }
         }
-        // Drain tray icon clicks (kept for Task 5; harmless to consume now).
-        while TrayIconEvent::receiver().try_recv().is_ok() {}
+        // Left-click / double-click on the tray icon → show the window.
+        while let Ok(ev) = TrayIconEvent::receiver().try_recv() {
+            if matches!(ev, TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }) {
+                show_window(ui.ctx());
+            }
+        }
 
         let ctx = ui.ctx().clone();
 
