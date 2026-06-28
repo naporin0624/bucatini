@@ -20,7 +20,7 @@ SDK code is redistributed here.
 ================================================================================
 LINE Seed JP
 ================================================================================
-The GUI (ndi-share-gui) bundles the "LINE Seed JP" typeface, fetched at build
+The GUI (bucatini-gui) bundles the "LINE Seed JP" typeface, fetched at build
 time by scripts/fetch-fonts.sh from https://github.com/line/seed and embedded
 into the GUI binary. LINE Seed is licensed under the SIL Open Font License,
 Version 1.1. See vendor/fonts/LICENSE (produced by the fetch script) for the

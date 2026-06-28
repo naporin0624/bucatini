@@ -1,4 +1,4 @@
-# ndi-share
+# Bucatini
 
 [日本語版 README](README.ja.md)
 
@@ -14,8 +14,23 @@ BGRA, wraps them into a Metal texture via IOSurface, and publishes them with
 `SyphonMetalServer` (no color-conversion shader needed).
 
 ```
-NDI source ──(network)──▶ ndi-share ──(Syphon / Metal)──▶ Resolume / OBS / Syphon Recorder
+NDI source ──(network)──▶ bucatini ──(Syphon / Metal)──▶ Resolume / OBS / Syphon Recorder
 ```
+
+## Install (prebuilt)
+
+Grab an installer from the [Releases](../../releases) page:
+
+- **macOS** — `Bucatini-<version>-macos-universal.dmg`. Open it and drag
+  `Bucatini.app` into Applications. The build is **unsigned**, so on first launch
+  right-click `Bucatini.app` → **Open** → **Open** (see *READ ME FIRST.txt* in the
+  dmg if macOS still blocks it).
+- **Windows** — `Bucatini-<version>-windows-x64-setup.exe`. Run it to install the
+  GUI + CLI and create Start Menu shortcuts. The build is unsigned, so dismiss the
+  SmartScreen prompt with **More info → Run anyway**.
+
+The plain `.tar.gz` / `.zip` archives are also attached for users who prefer not
+to install. Either way, the **NDI Runtime is still required** (see below).
 
 ## Prerequisites
 
@@ -59,13 +74,31 @@ cargo build --release
 `scripts/setup-syphon.sh` fetches the git submodule (`vendor/syphon-src` →
 Syphon-Framework) and builds `vendor/Syphon.framework` with `xcodebuild`.
 
+## Development
+
+Quality gates run via [rusty-hook](https://github.com/swellaby/rusty-hook)
+(a Rust-native git-hook installer — no Node required). The hooks share the same
+commands as CI:
+
+| Hook | Command |
+|---|---|
+| `pre-commit` | `cargo fmt --all -- --check` && `cargo clippy --all-targets --features gui -- -D warnings` |
+| `pre-push` | `cargo test --features gui` |
+
+The hooks are installed automatically the first time the dev-dependencies are
+built, so after cloning run a build once to activate them:
+
+```bash
+cargo build --features gui   # installs the git hooks via rusty-hook
+```
+
 ## Usage
 
 ```bash
-ndi-share --list                          # list discovered NDI sources and exit
-ndi-share --source "STUDIO (Camera 1)"    # publish a source by name (substring match)
-ndi-share                                 # interactively pick a source by number
-ndi-share --source Cam --name "MyFeed"    # custom Syphon server name (default: source name)
+bucatini --list                          # list discovered NDI sources and exit
+bucatini --source "STUDIO (Camera 1)"    # publish a source by name (substring match)
+bucatini                                 # interactively pick a source by number
+bucatini --source Cam --name "MyFeed"    # custom Syphon server name (default: source name)
 ```
 
 ### Options
@@ -83,7 +116,7 @@ plugin, …) to receive the feed. Stop with **Ctrl-C**.
 
 ## GUI (launcher)
 
-A minimal GUI launcher `ndi-share-gui` (built with
+A minimal GUI launcher `bucatini-gui` (built with
 [egui](https://github.com/emilk/egui)) ships alongside the CLI and exposes the
 same flow on screen: pick a source from a dropdown and **Start / Stop** (the
 server name is the selected source's name).
@@ -95,10 +128,10 @@ server name is the selected source's name).
 
 ```bash
 # The GUI is a separate binary behind the `gui` feature (not part of the CLI build)
-cargo run --release --features gui --bin ndi-share-gui
+cargo run --release --features gui --bin bucatini-gui
 # or build then run
-cargo build --release --features gui --bin ndi-share-gui
-./target/release/ndi-share-gui
+cargo build --release --features gui --bin bucatini-gui
+./target/release/bucatini-gui
 ```
 
 - **Source** — pick a discovered NDI source from the dropdown (**Refresh** to re-scan).

@@ -8,3 +8,12 @@
 
 # bundled fonts fetched by scripts/fetch-fonts.sh
 /vendor/fonts/
+
+# installer build output
+/dist
+# icon derivatives generated from assets/icon/bucatini-1024.png in CI
+/assets/icon/*.icns
+/assets/icon/*.ico
+
+# claude-mem auto-generated session context
+/AGENTS.md

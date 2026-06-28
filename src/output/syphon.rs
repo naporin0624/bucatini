@@ -65,12 +65,17 @@ mod tests {
 
     #[test]
     fn publishes_a_synthetic_frame() {
-        let mut out = SyphonOutput::new("ndi-share-test").expect("create server");
+        let mut out = SyphonOutput::new("bucatini-test").expect("create server");
         let w = 16u32;
         let h = 16u32;
         let stride = w * 4;
         let data = vec![0u8; (stride * h) as usize];
-        let frame = BgraFrame { data: &data, width: w, height: h, stride };
+        let frame = BgraFrame {
+            data: &data,
+            width: w,
+            height: h,
+            stride,
+        };
         out.publish(&frame).expect("publish ok");
     }
 }

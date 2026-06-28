@@ -37,3 +37,33 @@ jobs:
 
       - name: Build CLI + GUI
         run: cargo build --features gui --verbose
+
+  lint:
+    name: Format & Clippy
+    runs-on: macos-14
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install libndi (NDI runtime)
+        run: brew install libndi
+
+      - name: Build Syphon.framework
+        run: ./scripts/setup-syphon.sh
+
+      - name: Fetch LINE Seed JP (bundled by the GUI)
+        run: ./scripts/fetch-fonts.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy, rustfmt
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Format check
+        run: cargo fmt --all -- --check
+
+      - name: Clippy
+        run: cargo clippy --all-targets --features gui -- -D warnings

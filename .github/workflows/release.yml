@@ -75,7 +75,7 @@ jobs:
           stage="${TAG}-macos-universal"
           mkdir -p "$stage"
           # Combine each per-arch binary into one universal Mach-O.
-          for bin in ndi-share ndi-share-gui; do
+          for bin in bucatini bucatini-gui; do
             lipo -create \
               "target/aarch64-apple-darwin/release/$bin" \
               "target/x86_64-apple-darwin/release/$bin" \
@@ -85,16 +85,32 @@ jobs:
           cp README.md README.ja.md THIRD-PARTY-NOTICES "$stage/"
           # Let the binaries find the colocated (universal) Syphon.framework at
           # runtime. (libndi must be installed via `brew install libndi`.)
-          install_name_tool -add_rpath @loader_path "$stage/ndi-share"
-          install_name_tool -add_rpath @loader_path "$stage/ndi-share-gui"
+          install_name_tool -add_rpath @loader_path "$stage/bucatini"
+          install_name_tool -add_rpath @loader_path "$stage/bucatini-gui"
           tar -czf "${stage}.tar.gz" "$stage"
           echo "ASSET=${stage}.tar.gz" >> "$GITHUB_ENV"
+
+      - name: Build .app + .dmg installer
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          set -euo pipefail
+          stage="${TAG}-macos-universal"   # universal binaries staged above
+          ver="${TAG#bucatini-v}"          # bucatini-v0.2.2 -> 0.2.2
+          mkdir -p dist
+          bash packaging/macos/make-icns.sh assets/icon/bucatini-1024.png dist/bucatini.icns
+          bash packaging/macos/build-app.sh "$ver" \
+            "$stage/bucatini-gui" "$stage/bucatini" \
+            vendor/Syphon.framework dist/bucatini.icns dist
+          bash packaging/macos/build-dmg.sh "$ver" dist/Bucatini.app dist \
+            README.md README.ja.md THIRD-PARTY-NOTICES
+          echo "DMG=dist/Bucatini-${ver}-macos-universal.dmg" >> "$GITHUB_ENV"
 
       - name: Upload to the GitHub release
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: gh release upload "$TAG" "$ASSET" --clobber
+        run: gh release upload "$TAG" "$ASSET" "$DMG" --clobber
 
   build-windows:
     needs: [release-please]
@@ -139,16 +155,32 @@ jobs:
         run: |
           $stage = "$env:TAG-windows-x64"
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
-          Copy-Item target/release/ndi-share.exe $stage/
-          Copy-Item target/release/ndi-share-gui.exe $stage/
+          Copy-Item target/release/bucatini.exe $stage/
+          Copy-Item target/release/bucatini-gui.exe $stage/
           Copy-Item README.md, README.ja.md, THIRD-PARTY-NOTICES $stage/
           $asset = "$stage.zip"
           Compress-Archive -Path $stage -DestinationPath $asset -Force
           "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Build Inno Setup installer
+        shell: pwsh
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          $ErrorActionPreference = "Stop"
+          $stage = "$env:TAG-windows-x64"
+          $ver = $env:TAG -replace '^bucatini-v',''
+          # ICO from the source PNG (Pillow ships on the runner's Python).
+          pip install --quiet pillow
+          python packaging/make-ico.py assets/icon/bucatini-1024.png "$stage/bucatini.ico"
+          choco install innosetup --no-progress -y
+          $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
+          & $iscc "/DMyAppVersion=$ver" "/DSourceDir=$stage" "/DOutputDir=dist" packaging/windows/bucatini.iss
+          "SETUP=dist/Bucatini-$ver-windows-x64-setup.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Upload to the GitHub release
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
-        run: gh release upload "$env:TAG" "$env:ASSET" --clobber
+        run: gh release upload "$env:TAG" "$env:ASSET" "$env:SETUP" --clobber

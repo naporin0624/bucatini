@@ -115,8 +115,7 @@ fn build_windows_spout() {
         .compile("spout_bridge");
 
     for lib in [
-        "d3d11", "dxgi", "user32", "gdi32", "shell32", "ole32", "comdlg32",
-        "comctl32", "shlwapi",
+        "d3d11", "dxgi", "user32", "gdi32", "shell32", "ole32", "comdlg32", "comctl32", "shlwapi",
     ] {
         println!("cargo:rustc-link-lib={lib}");
     }
