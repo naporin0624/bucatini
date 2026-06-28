@@ -2,9 +2,11 @@
 
 [日本語版 README](README.ja.md)
 
-A macOS CLI tool that receives an NDI video source and republishes it as a
-**Syphon Metal texture**. It bridges NDI video into Syphon-capable apps such as
-Resolume and OBS as a GPU texture.
+A cross-platform CLI + GUI that receives an NDI video source and republishes it
+as a **GPU shared texture** — **Syphon** (Metal) on macOS and **Spout** on
+Windows. It bridges NDI video into apps such as Resolume and OBS without a CPU
+copy on the consuming side. macOS/Syphon is verified on real hardware; the
+Windows/Spout backend is currently compile-verified in CI only (see *Scope*).
 
 ## How it works
 
