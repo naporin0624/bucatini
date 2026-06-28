@@ -184,6 +184,8 @@ struct GuiApp {
     /// Set to `true` when the user chooses Quit from the tray menu so the
     /// close-interceptor lets the `Close` command through instead of hiding.
     quitting: bool,
+    /// Last content height the window was fitted to (avoids re-sending resizes).
+    fit_h: f32,
 }
 
 impl GuiApp {
@@ -198,6 +200,7 @@ impl GuiApp {
             running: None,
             tray: build_tray(),
             quitting: false,
+            fit_h: 0.0,
         };
         app.start_discovery(ctx);
         app
@@ -282,7 +285,7 @@ impl GuiApp {
                 .get(self.selected)
                 .map(|s| s.name.as_str())
                 .unwrap_or("?");
-            format!("{frames} frames · {name} · {}", ndi_share::output::output_kind())
+            format!("{frames} frames\n{name}\n{}", ndi_share::output::output_kind())
         } else if self.discovering {
             "searching\u{2026}".to_owned()
         } else if self.sources.is_empty() {
@@ -448,7 +451,20 @@ impl eframe::App for GuiApp {
         ui.add(egui::Label::new(format!("info: {}", self.info_line())).wrap());
 
         if let Some(tray) = &self.tray {
-            tray.status.set_text(format!("ndi-share — {}", self.info_line()));
+            // Tray menu is single-line: collapse the info newlines into separators.
+            tray.status.set_text(format!(
+                "ndi-share — {}",
+                self.info_line().replace('\n', " \u{30FB} ")
+            ));
+        }
+
+        // Fit the window height to the content (width stays fixed) so it is tight
+        // in both idle and running without leaving an idle gap. Only resend when
+        // the content height actually changes.
+        let content_h = ui.min_rect().height() + 16.0;
+        if (content_h - self.fit_h).abs() > 1.0 {
+            self.fit_h = content_h;
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(400.0, content_h)));
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
@@ -457,9 +473,12 @@ impl eframe::App for GuiApp {
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        // Height sized for the running state (status line + 2-line wrapped info)
-        // so the window doesn't grow/shrink between idle and running.
-        viewport: egui::ViewportBuilder::default().with_inner_size([400.0, 200.0]),
+        // Fixed-width launcher: the app fits the window height to its content
+        // each frame (see the InnerSize command in `ui`); width stays 400 and the
+        // window is non-resizable so the auto-fit never fights a manual drag.
+        viewport: egui::ViewportBuilder::default()
+            .with_inner_size([400.0, 165.0])
+            .with_resizable(false),
         ..Default::default()
     };
     eframe::run_native(
