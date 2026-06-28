@@ -1,6 +1,6 @@
 [package]
 name = "ndi-share"
-version = "0.2.0"
+version = "0.2.1"
 edition = "2021"
 description = "Receive an NDI source and republish it as a Syphon Metal texture (macOS)"
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.2.1](https://github.com/naporin0624/ndi-to-sharedtexture/compare/ndi-share-v0.2.0...ndi-share-v0.2.1) (2026-06-28)
+
+
+### Bug Fixes
+
+* **release:** build a universal macOS binary instead of per-arch on Intel runners ([c2ecec7](https://github.com/naporin0624/ndi-to-sharedtexture/commit/c2ecec72e39ee0b1fb08485d385264a9b1659ac1))
+* **release:** universal macOS binary (no Intel runner dependency) ([91e1641](https://github.com/naporin0624/ndi-to-sharedtexture/commit/91e1641ed5abfaaca0032110fb639e3cfecbff42))
+
 ## [0.2.0](https://github.com/naporin0624/ndi-to-sharedtexture/compare/ndi-share-v0.1.0...ndi-share-v0.2.0) (2026-06-28)
 
 
