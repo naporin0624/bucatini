@@ -61,6 +61,11 @@ ndi-share --source Cam --name "MyFeed"    # Syphon 公開名を指定（既定: 
 
 CLI と同じ動作を画面から操作できる、最小構成の GUI ランチャー `ndi-share-gui` も同梱しています（[egui](https://github.com/emilk/egui) 製）。ソースをドロップダウンから選び、公開名を入力して **Start / Stop** するだけです。
 
+> GUI を初めてビルドする前に、同梱フォント（LINE Seed JP）を取得してください:
+> ```bash
+> ./scripts/fetch-fonts.sh   # vendor/fonts/ に LINE Seed JP を取得（初回のみ）
+> ```
+
 ```bash
 # GUI は `gui` フィーチャの別バイナリ（CLI ビルドには含まれません）
 cargo run --release --features gui --bin ndi-share-gui
@@ -76,6 +81,8 @@ cargo build --release --features gui --bin ndi-share-gui
 - **Start / Stop** — 再配信の開始・停止。実行中は受信フレーム数がライブ表示されます。
 
 ソース検索も受信ループもワーカースレッドで動くため、UI は固まりません。macOS では CLI と同じ前提条件（Xcode・Metal Toolchain・`vendor/Syphon.framework`）が必要です。
+
+ウィンドウの **×** はアプリを終了せず、トレイ（macOS=メニューバー / Windows=通知領域）に格納します。格納中も再配信は継続します。トレイのアイコン／ステータス項目をクリックすると復帰、**Quit** で終了します。テーマはローカルの `cannelloni` を参考にしたダーク配色です。
 
 ## Windows / Spout（実験的・未検証）
 

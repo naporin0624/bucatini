@@ -44,6 +44,11 @@ A minimal GUI launcher `ndi-share-gui` (built with [egui](https://github.com/emi
 ships alongside the CLI and exposes the same flow on screen: pick a source from a
 dropdown, set the server name, and **Start / Stop**.
 
+> Before building the GUI for the first time, fetch the bundled font (LINE Seed JP):
+> ```bash
+> ./scripts/fetch-fonts.sh   # downloads LINE Seed JP into vendor/fonts/ (once)
+> ```
+
 ```bash
 # The GUI is a separate binary behind the `gui` feature (not part of the CLI build)
 cargo run --release --features gui --bin ndi-share-gui
@@ -60,6 +65,11 @@ cargo build --release --features gui --bin ndi-share-gui
 Discovery and the receive loop both run on worker threads, so the UI never freezes.
 On macOS the GUI needs the same prerequisites as the CLI (Xcode, Metal Toolchain,
 `vendor/Syphon.framework`).
+
+The window **✕** does not quit the app — it hides to the tray (macOS menu bar /
+Windows notification area) and republishing keeps running. Click the tray icon or
+its status item to restore the window; **Quit** exits. The theme is a dark palette
+referencing the local `cannelloni` project.
 
 ## Scope
 
