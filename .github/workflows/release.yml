@@ -1,8 +1,8 @@
 name: Release
 
 # release-please manages versioning from conventional commits: it opens a
-# release PR, and merging it creates the GitHub release + tag. The build job
-# then compiles macOS binaries and attaches them to that release.
+# release PR, and merging it creates the GitHub release + tag. The build jobs
+# then compile the macOS and Windows binaries and attach them to that release.
 
 on:
   push:
@@ -95,3 +95,60 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           TAG: ${{ needs.release-please.outputs.tag_name }}
         run: gh release upload "$TAG" "$ASSET" --clobber
+
+  build-windows:
+    needs: [release-please]
+    if: needs.release-please.outputs.release_created == 'true'
+    # Windows/Spout backend: x86_64-pc-windows-msvc. The NDI runtime DLL is NOT
+    # bundled (mirrors macOS not bundling libndi); the delay-load shim resolves
+    # Processing.NDI.Lib.x64.dll from the NDI 6 Runtime (NDI_RUNTIME_DIR_Vx) at
+    # run time, so end users install the NDI 6 Runtime once.
+    runs-on: windows-latest
+    timeout-minutes: 60
+    name: Build (Windows x64)
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Fetch Spout2 SDK
+        shell: pwsh
+        run: ./scripts/fetch-spout2.ps1
+
+      - name: Install NDI SDK
+        shell: pwsh
+        run: |
+          # build.rs links Processing.NDI.Lib.x64.lib from the NDI SDK.
+          ./scripts/install-ndi-sdk.ps1
+          "NDI_SDK_DIR=C:\Program Files\NDI\NDI 6 SDK" |
+            Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Fetch LINE Seed JP (compiled into the GUI)
+        shell: bash
+        run: ./scripts/fetch-fonts.sh
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Build (CLI + GUI, release)
+        run: cargo build --release --features gui
+
+      - name: Package
+        shell: pwsh
+        env:
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: |
+          $stage = "$env:TAG-windows-x64"
+          New-Item -ItemType Directory -Force -Path $stage | Out-Null
+          Copy-Item target/release/ndi-share.exe $stage/
+          Copy-Item target/release/ndi-share-gui.exe $stage/
+          Copy-Item README.md, README.en.md, THIRD-PARTY-NOTICES $stage/
+          $asset = "$stage.zip"
+          Compress-Archive -Path $stage -DestinationPath $asset -Force
+          "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
+
+      - name: Upload to the GitHub release
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ needs.release-please.outputs.tag_name }}
+        run: gh release upload "$env:TAG" "$env:ASSET" --clobber
