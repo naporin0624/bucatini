@@ -7,4 +7,4 @@
 /_spout2_tmp
 
 # bundled fonts fetched by scripts/fetch-fonts.sh
-vendor/fonts/
+/vendor/fonts/

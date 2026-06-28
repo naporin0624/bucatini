@@ -23,7 +23,7 @@ done
 # Pick a Japanese Regular weight (ttf or otf).
 font="$(find "$tmp/x" -type f \
   \( -iname '*JP*Rg*.ttf' -o -iname '*JP*Regular*.ttf' \
-     -o -iname '*JP*Rg*.otf' -o -iname '*JP*Regular*.otf' \) | head -n1)"
+     -o -iname '*JP*Rg*.otf' -o -iname '*JP*Regular*.otf' \) -print -quit)"
 if [ -z "$font" ]; then
   echo "ERROR: no LINE Seed JP Regular font found in the archive." >&2
   echo "Inspect the archive layout and adjust the find globs in this script." >&2
@@ -31,7 +31,7 @@ if [ -z "$font" ]; then
 fi
 cp "$font" "$DEST/LINESeedJP-Regular.ttf"
 
-license="$(find "$tmp/x" -type f \( -iname 'OFL*' -o -iname 'LICENSE*' \) | head -n1)"
+license="$(find "$tmp/x" -type f \( -iname 'OFL*' -o -iname 'LICENSE*' \) -print -quit)"
 [ -n "$license" ] && cp "$license" "$DEST/LICENSE" || echo "(note: no LICENSE file found in archive)"
 
 echo "OK: $DEST/LINESeedJP-Regular.ttf ($(wc -c < "$DEST/LINESeedJP-Regular.ttf") bytes)"
