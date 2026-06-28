@@ -381,9 +381,15 @@ impl eframe::App for GuiApp {
         ui.heading(format!("NDI \u{2192} {}", ndi_share::output::output_kind()));
         ui.add_space(8.0);
 
-        // Source row: dropdown + refresh icon on one line.
+        // Source row: dropdown fills the row minus a reserved slot for the
+        // refresh icon, then truncates — so select + icon always fit the window
+        // width regardless of source-name length.
         ui.horizontal(|ui| {
             ui.label("Source:");
+            // Reserve space for the refresh button (~icon + padding + spacing)
+            // up front so the dropdown never pushes it off the right edge.
+            let icon_slot = 40.0;
+            let combo_w = (ui.available_width() - icon_slot).max(80.0);
             let sources = &self.sources;
             let selected = &mut self.selected;
             let label = sources
@@ -392,7 +398,7 @@ impl eframe::App for GuiApp {
                 .unwrap_or_else(|| "(none)".to_owned());
             ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
                 egui::ComboBox::from_id_salt("ndi_source")
-                    .width(200.0)
+                    .width(combo_w)
                     .truncate()
                     .selected_text(label)
                     .show_ui(ui, |ui| {
