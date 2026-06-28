@@ -82,7 +82,7 @@ jobs:
               -output "$stage/$bin"
           done
           cp -R vendor/Syphon.framework "$stage/"
-          cp README.md README.en.md THIRD-PARTY-NOTICES "$stage/"
+          cp README.md README.ja.md THIRD-PARTY-NOTICES "$stage/"
           # Let the binaries find the colocated (universal) Syphon.framework at
           # runtime. (libndi must be installed via `brew install libndi`.)
           install_name_tool -add_rpath @loader_path "$stage/ndi-share"
@@ -141,7 +141,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $stage | Out-Null
           Copy-Item target/release/ndi-share.exe $stage/
           Copy-Item target/release/ndi-share-gui.exe $stage/
-          Copy-Item README.md, README.en.md, THIRD-PARTY-NOTICES $stage/
+          Copy-Item README.md, README.ja.md, THIRD-PARTY-NOTICES $stage/
           $asset = "$stage.zip"
           Compress-Archive -Path $stage -DestinationPath $asset -Force
           "ASSET=$asset" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8

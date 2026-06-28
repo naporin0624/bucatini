@@ -1,110 +1,156 @@
 # ndi-share
 
-[English README](README.en.md)
+[日本語版 README](README.ja.md)
 
-NDI 映像ソースを受信し、その映像を **Syphon Metal テクスチャ** として再配信する macOS 向け CLI ツールです。NDI 映像を Resolume・OBS などの Syphon 対応アプリへ、GPU 上のテクスチャとして橋渡しします。
+A macOS CLI tool that receives an NDI video source and republishes it as a
+**Syphon Metal texture**. It bridges NDI video into Syphon-capable apps such as
+Resolume and OBS as a GPU texture.
 
-## 仕組み
+## How it works
 
-NDI はネットワーク経由で **CPU メモリ上の映像フレーム** を運び、Syphon は **GPU 上の Metal テクスチャ** をプロセス間で共有します。本ツールは受信フレームを BGRA で受け取り、IOSurface 経由で Metal テクスチャ化して `SyphonMetalServer` で公開します（色変換シェーダ不要）。
+NDI carries **video frames in CPU memory** over the network, while Syphon shares
+**Metal textures on the GPU** between processes. This tool receives frames as
+BGRA, wraps them into a Metal texture via IOSurface, and publishes them with
+`SyphonMetalServer` (no color-conversion shader needed).
 
 ```
-NDI 送信元 ──(ネットワーク)──▶ ndi-share ──(Syphon / Metal)──▶ Resolume / OBS / Syphon Recorder
+NDI source ──(network)──▶ ndi-share ──(Syphon / Metal)──▶ Resolume / OBS / Syphon Recorder
 ```
 
-## 前提条件
+## Prerequisites
 
-- **フル版の Xcode**（Command Line Tools だけでは不可）。`xcrun` が `MacOSX.sdk` を見つけられない場合:
+### Runtime — required to *run* (including the prebuilt release binaries)
+
+- **NDI Runtime** — the app loads the NDI runtime library at run time, so it
+  must be installed even if you only use the released binaries.
+  - **macOS**: `brew install libndi` (provides `/usr/local/lib/libndi.dylib`),
+    or install [NDI Tools](https://ndi.video/tools/) for macOS.
+  - **Windows**: install [NDI Tools](https://ndi.video/tools/) (or the
+    standalone NDI Runtime); it ships `Processing.NDI.Lib.x64.dll`. The app
+    delay-loads that DLL and resolves it at run time from the
+    `NDI_RUNTIME_DIR_Vx` environment variable the runtime installer sets, so you
+    do **not** need to put the DLL next to the exe or add it to PATH. Without the
+    NDI runtime installed, launching fails with a
+    "`Processing.NDI.Lib.x64.dll` not found" error.
+
+### Build — macOS
+
+- **Full Xcode** (not just Command Line Tools). If `xcrun` cannot find
+  `MacOSX.sdk`:
   ```bash
   sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer
   ```
-- **Metal Toolchain**（Syphon の Metal シェーダのコンパイルに必要）。framework のビルドが `cannot execute tool 'metal'` で失敗する場合、一度だけ実行:
+- **Metal Toolchain** (needed to compile Syphon's Metal shaders). If the
+  framework build fails with `cannot execute tool 'metal'`, run once:
   ```bash
-  xcodebuild -downloadComponent MetalToolchain   # 約 688 MB のダウンロード
+  xcodebuild -downloadComponent MetalToolchain   # ~688 MB download
   ```
-- NDI ランタイム: `brew install libndi`（`/usr/local/lib/libndi.dylib` を提供）。
-- Rust（stable）。
+- Rust (stable).
 
-## ビルド
+## Build (macOS)
 
 ```bash
-sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer   # 必要な場合のみ
-xcodebuild -downloadComponent MetalToolchain                            # 'metal' ツールが無い場合のみ、一度だけ
-./scripts/setup-syphon.sh   # vendor/Syphon.framework をビルド（初回のみ）
+sudo xcode-select --switch /Applications/Xcode.app/Contents/Developer   # if needed
+xcodebuild -downloadComponent MetalToolchain                            # once, if 'metal' tool missing
+./scripts/setup-syphon.sh   # builds vendor/Syphon.framework (once)
 cargo build --release
 ```
 
-`scripts/setup-syphon.sh` は git submodule（`vendor/syphon-src` → Syphon-Framework）を取得し、`xcodebuild` で `vendor/Syphon.framework` をビルドします。
+`scripts/setup-syphon.sh` fetches the git submodule (`vendor/syphon-src` →
+Syphon-Framework) and builds `vendor/Syphon.framework` with `xcodebuild`.
 
-## 使い方
+## Usage
 
 ```bash
-ndi-share --list                          # 検出された NDI ソース一覧を表示して終了
-ndi-share --source "STUDIO (Camera 1)"    # 名前（部分一致）でソースを選んで配信
-ndi-share                                 # 一覧から番号で対話的に選択
-ndi-share --source Cam --name "MyFeed"    # Syphon 公開名を指定（既定: ソース名）
+ndi-share --list                          # list discovered NDI sources and exit
+ndi-share --source "STUDIO (Camera 1)"    # publish a source by name (substring match)
+ndi-share                                 # interactively pick a source by number
+ndi-share --source Cam --name "MyFeed"    # custom Syphon server name (default: source name)
 ```
 
-### オプション
+### Options
 
-| オプション | 説明 |
+| Option | Description |
 |---|---|
-| `--list` | 検出された NDI ソースを一覧表示して終了 |
-| `--source <名前>` | NDI ソース名（大文字小文字を無視した部分一致）。未指定かつ非 `--list` 時は対話選択 |
-| `--name <名前>` | Syphon の公開名（既定: 選択した NDI ソース名） |
-| `--timeout <ms>` | 検出・キャプチャのタイムアウト（ミリ秒、既定 5000） |
-| `--verbose` | 受信解像度などのログを表示 |
+| `--list` | List discovered NDI sources and exit |
+| `--source <name>` | NDI source name (case-insensitive substring). If omitted (and not `--list`), pick interactively |
+| `--name <name>` | Syphon server name (default: the selected NDI source name) |
+| `--timeout <ms>` | Discovery / capture timeout in milliseconds (default 5000) |
+| `--verbose` | Log received resolution, fps, etc. |
 
-配信を受け取るには Syphon 対応アプリ（Resolume、Syphon Recorder、OBS の Syphon プラグインなど）を開いてください。停止は **Ctrl-C** です。
+Open a Syphon-capable app (Resolume, Syphon Recorder, OBS with the Syphon
+plugin, …) to receive the feed. Stop with **Ctrl-C**.
 
-## GUI（ランチャー）
+## GUI (launcher)
 
-CLI と同じ動作を画面から操作できる、最小構成の GUI ランチャー `ndi-share-gui` も同梱しています（[egui](https://github.com/emilk/egui) 製）。ソースをドロップダウンから選んで **Start / Stop** するだけです（公開名は選択したソース名になります）。
+A minimal GUI launcher `ndi-share-gui` (built with
+[egui](https://github.com/emilk/egui)) ships alongside the CLI and exposes the
+same flow on screen: pick a source from a dropdown and **Start / Stop** (the
+server name is the selected source's name).
 
-> GUI を初めてビルドする前に、同梱フォント（LINE Seed JP）を取得してください:
+> Before building the GUI for the first time, fetch the bundled font (LINE Seed JP):
 > ```bash
-> ./scripts/fetch-fonts.sh   # vendor/fonts/ に LINE Seed JP を取得（初回のみ）
+> ./scripts/fetch-fonts.sh   # downloads LINE Seed JP into vendor/fonts/ (once)
 > ```
 
 ```bash
-# GUI は `gui` フィーチャの別バイナリ（CLI ビルドには含まれません）
+# The GUI is a separate binary behind the `gui` feature (not part of the CLI build)
 cargo run --release --features gui --bin ndi-share-gui
-# またはビルドだけして実行
+# or build then run
 cargo build --release --features gui --bin ndi-share-gui
 ./target/release/ndi-share-gui
 ```
 
-操作:
+- **Source** — pick a discovered NDI source from the dropdown (**Refresh** to re-scan).
+- **Start / Stop** — begin/end republishing; the received frame count updates live.
 
-- **Source** — 検出された NDI ソースをドロップダウンから選択（**Refresh** で再検索）。
-- **Start / Stop** — 再配信の開始・停止。実行中は受信フレーム数がライブ表示されます。
+Discovery and the receive loop both run on worker threads, so the UI never
+freezes. On macOS the GUI needs the same build prerequisites as the CLI (Xcode,
+Metal Toolchain, `vendor/Syphon.framework`).
 
-ソース検索も受信ループもワーカースレッドで動くため、UI は固まりません。macOS では CLI と同じ前提条件（Xcode・Metal Toolchain・`vendor/Syphon.framework`）が必要です。
+The window **✕** does not quit the app — it hides to the tray (macOS menu bar /
+Windows notification area) and republishing keeps running. Click the tray icon
+or its status item to restore the window; **Quit** exits. **Cmd+Q** (macOS) /
+**Ctrl+Q** (Windows/Linux) also quits. The theme is a dark palette referencing
+the local `cannelloni` project.
 
-ウィンドウの **×** はアプリを終了せず、トレイ（macOS=メニューバー / Windows=通知領域）に格納します。格納中も再配信は継続します。トレイのアイコン／ステータス項目をクリックすると復帰、**Quit** で終了します。（**Cmd+Q**／Windows は **Ctrl+Q** でも終了します）。テーマはローカルの `cannelloni` を参考にしたダーク配色です。
+## Windows / Spout (experimental, unverified)
 
-## Windows / Spout（実験的・未検証）
+On Windows the output goes to Spout (abstracted behind a `SharedTextureOutput`
+trait that selects Syphon on macOS / Spout on Windows).
 
-Windows では Spout 出力に対応します（`SharedTextureOutput` trait による抽象化で、macOS=Syphon / Windows=Spout を切り替え）。
+> ⚠️ **Note:** the Windows/Spout backend is currently **compile-verified in CI
+> (windows-latest) only** and has not been tested on real hardware. Color order,
+> vertical flip, and SpoutDX initialization may need adjustment once tested on a
+> real Windows host.
 
-> ⚠️ **注意:** Windows/Spout バックエンドは現状 **GitHub Actions（windows-latest）でのコンパイル検証のみ**で、実機での動作確認は未実施です。色順・上下反転・SpoutDX 初期化まわりは実機検証で調整が必要な可能性があります。
+### To run (including the release binaries)
 
-ビルド手順（Windows / PowerShell）:
+Install [NDI Tools](https://ndi.video/tools/) so the NDI runtime is present (see
+[Prerequisites → Runtime](#runtime--required-to-run-including-the-prebuilt-release-binaries)).
+Receive the feed in a Spout-capable app (Resolume, OBS with the Spout plugin, …).
+
+### Build (Windows / PowerShell)
 
 ```powershell
-./scripts/fetch-spout2.ps1            # vendor/Spout2 へ Spout2 SDK を取得
-# NDI SDK をインストール（Processing.NDI.Lib.x64.lib を提供）
-#   インストール先が標準と異なる場合は環境変数 NDI_SDK_DIR を設定
+./scripts/fetch-spout2.ps1            # fetch the Spout2 SDK into vendor/Spout2
+./scripts/install-ndi-sdk.ps1         # silently install the NDI 6 SDK (provides Processing.NDI.Lib.x64.lib)
+#   set NDI_SDK_DIR if you installed the SDK somewhere non-standard
 cargo build --release
 ```
 
-NDI のインポートライブラリは `%NDI_SDK_DIR%\Lib\x64\Processing.NDI.Lib.x64.lib`（既定 `C:\Program Files\NDI\NDI 6 SDK`）を参照します。実行時は NDI ランタイム DLL が PATH 上にある必要があります。受信は Spout 対応アプリ（Resolume、OBS の Spout プラグインなど）で行います。
+The NDI import library is taken from
+`%NDI_SDK_DIR%\Lib\x64\Processing.NDI.Lib.x64.lib` (default
+`C:\Program Files\NDI\NDI 6 SDK`). Building needs the NDI **SDK**; running needs
+the NDI **Runtime** (the SDK bundles the runtime too).
 
-## 対応範囲
+## Scope
 
-- **macOS / Syphon** — 実機検証済み（v1）。
-- **Windows / Spout** — コンパイル検証のみ（実機動作は未検証）。
+- **macOS / Syphon** — verified on real hardware (v1), CLI and GUI.
+- **Windows / Spout** — compile-verified in CI only (no real-hardware test yet).
 
-## ライセンス / 第三者ソフトウェア
+## License / third-party software
 
-本ツールは Syphon Framework（BSD）を同梱ビルドし、NDI ランタイム（libndi、別途インストール）にリンクします。詳細は [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES) を参照してください。NDI® は Vizrt NV の登録商標です。
+This tool builds and bundles the Syphon Framework (BSD) and links the NDI
+runtime (libndi, installed separately). See [THIRD-PARTY-NOTICES](THIRD-PARTY-NOTICES)
+for details. NDI® is a registered trademark of Vizrt NV.
