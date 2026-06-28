@@ -2,9 +2,11 @@
 
 [English README](README.md)
 
-NDI 映像ソースを受信し、その映像を **Syphon Metal テクスチャ** として再配信する
-macOS 向け CLI ツールです。NDI 映像を Resolume・OBS などの Syphon 対応アプリへ、
-GPU 上のテクスチャとして橋渡しします。
+NDI 映像ソースを受信し、その映像を **GPU 共有テクスチャ** として再配信する
+クロスプラットフォーム対応の CLI + GUI ツールです。出力は macOS では **Syphon**
+（Metal）、Windows では **Spout** を使い、NDI 映像を Resolume・OBS などへ
+受信側で CPU コピーを挟まずに橋渡しします。macOS / Syphon は実機検証済みで、
+Windows / Spout は現状 CI でのコンパイル確認のみです（「対応範囲」を参照）。
 
 ## 仕組み
 
