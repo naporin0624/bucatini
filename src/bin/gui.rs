@@ -139,8 +139,6 @@ struct RunHandle {
 struct GuiApp {
     sources: Vec<Source>,
     selected: usize,
-    name: String,
-    name_edited: bool,
     status: String,
     discovering: bool,
     disco_rx: Option<MpscReceiver<DiscoverMsg>>,
@@ -153,8 +151,6 @@ impl GuiApp {
         let mut app = GuiApp {
             sources: Vec::new(),
             selected: 0,
-            name: String::new(),
-            name_edited: false,
             status: String::new(),
             discovering: false,
             disco_rx: None,
@@ -185,9 +181,6 @@ impl GuiApp {
                     self.status = "No NDI sources found.".to_owned();
                 } else {
                     self.status.clear();
-                    if !self.name_edited {
-                        self.name = self.sources[0].name.clone();
-                    }
                 }
             }
             Ok(DiscoverMsg::Err(e)) => {
@@ -206,11 +199,7 @@ impl GuiApp {
 
     fn start(&mut self, ctx: &egui::Context) {
         let Some(source) = self.sources.get(self.selected).cloned() else { return };
-        let name = if self.name.trim().is_empty() {
-            source.name.clone()
-        } else {
-            self.name.clone()
-        };
+        let name = source.name.clone();
         let shared = Arc::new(RunState::new());
         let worker_shared = shared.clone();
         let ctx2 = ctx.clone();
@@ -230,6 +219,27 @@ impl GuiApp {
             let _ = handle.join.join();
             let frames = handle.shared.frames.load(Ordering::SeqCst);
             self.status = format!("Stopped after {frames} frames.");
+        }
+    }
+
+    /// One-line status shown after `info:`.
+    fn info_line(&self) -> String {
+        if let Some(handle) = &self.running {
+            let frames = handle.shared.frames.load(Ordering::SeqCst);
+            let name = self
+                .sources
+                .get(self.selected)
+                .map(|s| s.name.as_str())
+                .unwrap_or("?");
+            format!("{frames} frames · {name} · {}", ndi_share::output::output_kind())
+        } else if self.discovering {
+            "searching\u{2026}".to_owned()
+        } else if self.sources.is_empty() {
+            "no NDI sources".to_owned()
+        } else if self.status.is_empty() {
+            "ready".to_owned()
+        } else {
+            self.status.clone()
         }
     }
 
@@ -284,90 +294,43 @@ impl eframe::App for GuiApp {
         ui.heading(format!("NDI \u{2192} {}", ndi_share::output::output_kind()));
         ui.add_space(8.0);
 
-        // Disable the form while running so the user cannot change inputs mid-capture.
-        ui.add_enabled_ui(self.running.is_none(), |ui| {
-            // Source dropdown. Split borrows so the closure can hold
-            // `&sources` and `&mut selected` at once.
-            ui.horizontal(|ui| {
-                ui.label("Source:");
-                let prev = self.selected;
-                let sources = &self.sources;
-                let selected = &mut self.selected;
-                let label = sources
-                    .get(*selected)
-                    .map(|s| s.name.clone())
-                    .unwrap_or_else(|| "(none)".to_owned());
-                ui.add_enabled_ui(!sources.is_empty(), |ui| {
-                    egui::ComboBox::from_id_salt("ndi_source")
-                        .selected_text(label)
-                        .show_ui(ui, |ui| {
-                            for (i, s) in sources.iter().enumerate() {
-                                ui.selectable_value(selected, i, &s.name);
-                            }
-                        });
-                });
-                // If the user picked a different source and hasn't hand-edited
-                // the name, follow the source name.
-                if self.selected != prev && !self.name_edited {
-                    if let Some(s) = self.sources.get(self.selected) {
-                        self.name = s.name.clone();
-                    }
-                }
+        // Source row: dropdown + refresh icon on one line.
+        ui.horizontal(|ui| {
+            ui.label("Source:");
+            let sources = &self.sources;
+            let selected = &mut self.selected;
+            let label = sources
+                .get(*selected)
+                .map(|s| s.name.clone())
+                .unwrap_or_else(|| "(none)".to_owned());
+            ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
+                egui::ComboBox::from_id_salt("ndi_source")
+                    .selected_text(label)
+                    .show_ui(ui, |ui| {
+                        for (i, s) in sources.iter().enumerate() {
+                            ui.selectable_value(selected, i, &s.name);
+                        }
+                    });
             });
-
-            ui.horizontal(|ui| {
-                ui.add_enabled_ui(!self.discovering, |ui| {
-                    if ui.button("\u{1F504} Refresh").clicked() {
-                        self.start_discovery(&ctx);
-                    }
-                });
-            });
-
-            ui.horizontal(|ui| {
-                ui.label("Name:");
-                if ui.text_edit_singleline(&mut self.name).changed() {
-                    self.name_edited = true;
+            ui.add_enabled_ui(self.running.is_none() && !self.discovering, |ui| {
+                if ui.button("\u{1F504}").on_hover_text("Refresh").clicked() {
+                    self.start_discovery(&ctx);
                 }
             });
         });
 
-        // Start/Stop button row.
-        // Pre-compute state flags to avoid borrow conflicts inside the closure:
-        // `match &self.running` would hold an immutable borrow that conflicts
-        // with `self.start()`/`self.stop()` which need `&mut self`.
-        ui.add_space(8.0);
+        // Start / Stop.
         let is_running = self.running.is_some();
         let can_start = !self.sources.is_empty();
-        let run_frames = self
-            .running
-            .as_ref()
-            .map(|h| h.shared.frames.load(Ordering::SeqCst))
-            .unwrap_or(0);
-        let run_source = self
-            .sources
-            .get(self.selected)
-            .map(|s| s.name.clone())
-            .unwrap_or_else(|| "?".to_owned());
-
         let mut start_clicked = false;
         let mut stop_clicked = false;
         ui.horizontal(|ui| {
-            if !is_running {
-                if ui
-                    .add_enabled(can_start, egui::Button::new("\u{25B6} Start"))
-                    .clicked()
-                {
-                    start_clicked = true;
-                }
+            if is_running {
+                stop_clicked = ui.button("\u{25A0} Stop").clicked();
             } else {
-                if ui.button("\u{25A0} Stop").clicked() {
-                    stop_clicked = true;
-                }
-                ui.label(format!(
-                    "\u{25CF} Running \u{2014} {} as {} \u{2014} {run_frames} frames",
-                    run_source,
-                    ndi_share::output::output_kind(),
-                ));
+                start_clicked = ui
+                    .add_enabled(can_start, egui::Button::new("\u{25B6} Start"))
+                    .clicked();
             }
         });
         if start_clicked {
@@ -377,19 +340,19 @@ impl eframe::App for GuiApp {
             self.stop();
         }
 
-        if !self.status.is_empty() {
-            ui.label(&self.status);
+        // Running indicator (accent dot) + info line.
+        if self.running.is_some() {
+            ui.colored_label(egui::Color32::from_rgb(0x39, 0x96, 0xFF), "\u{25CF} Running");
         }
+        ui.label(format!("info: {}", self.info_line()));
 
-        if self.discovering || self.running.is_some() {
-            ctx.request_repaint_after(std::time::Duration::from_millis(200));
-        }
+        ctx.request_repaint_after(std::time::Duration::from_millis(200));
     }
 }
 
 fn main() -> eframe::Result {
     let options = eframe::NativeOptions {
-        viewport: egui::ViewportBuilder::default().with_inner_size([420.0, 240.0]),
+        viewport: egui::ViewportBuilder::default().with_inner_size([360.0, 170.0]),
         ..Default::default()
     };
     eframe::run_native(
