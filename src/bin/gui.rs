@@ -381,36 +381,37 @@ impl eframe::App for GuiApp {
         ui.heading(format!("NDI \u{2192} {}", ndi_share::output::output_kind()));
         ui.add_space(8.0);
 
-        // Source row: dropdown fills the row minus a reserved slot for the
-        // refresh icon, then truncates — so select + icon always fit the window
-        // width regardless of source-name length.
+        // Source row: refresh icon pinned to the right (its natural width), the
+        // dropdown fills the remaining width to its left and truncates — so the
+        // select + icon always fit the window, no pixel math.
         ui.horizontal(|ui| {
             ui.label("Source:");
-            // Reserve space for the refresh button (~icon + padding + spacing)
-            // up front so the dropdown never pushes it off the right edge.
-            let icon_slot = 40.0;
-            let combo_w = (ui.available_width() - icon_slot).max(80.0);
-            let sources = &self.sources;
-            let selected = &mut self.selected;
-            let label = sources
-                .get(*selected)
-                .map(|s| s.name.clone())
-                .unwrap_or_else(|| "(none)".to_owned());
-            ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
-                egui::ComboBox::from_id_salt("ndi_source")
-                    .width(combo_w)
-                    .truncate()
-                    .selected_text(label)
-                    .show_ui(ui, |ui| {
-                        for (i, s) in sources.iter().enumerate() {
-                            ui.selectable_value(selected, i, &s.name);
-                        }
-                    });
-            });
-            ui.add_enabled_ui(self.running.is_none() && !self.discovering, |ui| {
-                if ui.button("\u{1F504}").on_hover_text("Refresh").clicked() {
-                    self.start_discovery(&ctx);
-                }
+            ui.with_layout(egui::Layout::right_to_left(egui::Align::Center), |ui| {
+                // Rightmost item: the refresh icon (consumes only its own width).
+                ui.add_enabled_ui(self.running.is_none() && !self.discovering, |ui| {
+                    if ui.button("\u{1F504}").on_hover_text("Refresh").clicked() {
+                        self.start_discovery(&ctx);
+                    }
+                });
+                // The dropdown fills whatever width remains to the left.
+                let combo_w = ui.available_width();
+                let sources = &self.sources;
+                let selected = &mut self.selected;
+                let label = sources
+                    .get(*selected)
+                    .map(|s| s.name.clone())
+                    .unwrap_or_else(|| "(none)".to_owned());
+                ui.add_enabled_ui(self.running.is_none() && !sources.is_empty(), |ui| {
+                    egui::ComboBox::from_id_salt("ndi_source")
+                        .width(combo_w)
+                        .truncate()
+                        .selected_text(label)
+                        .show_ui(ui, |ui| {
+                            for (i, s) in sources.iter().enumerate() {
+                                ui.selectable_value(selected, i, &s.name);
+                            }
+                        });
+                });
             });
         });
 
