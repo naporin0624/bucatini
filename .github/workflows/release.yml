@@ -28,60 +28,63 @@ jobs:
   build:
     needs: [release-please]
     if: needs.release-please.outputs.release_created == 'true'
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - os: macos-14
-            target: aarch64-apple-darwin
-            name: macos-arm64
-          - os: macos-13
-            target: x86_64-apple-darwin
-            name: macos-x64
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
-    name: Build (${{ matrix.name }})
+    # Single arm64 runner (macos-14) builds BOTH arches and lipos them into one
+    # universal binary — GitHub's Intel macos-13 runners are scarce and queue for
+    # hours. brew's libndi.dylib and the Syphon.framework are both built universal,
+    # so cross-compiling x86_64 on the arm64 runner links cleanly.
+    runs-on: macos-14
+    timeout-minutes: 60
+    name: Build (macOS universal)
     steps:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
 
-      - name: Install libndi (NDI runtime)
+      - name: Install libndi (universal NDI runtime)
         run: brew install libndi
 
-      - name: Build Syphon.framework
-        run: ./scripts/setup-syphon.sh
+      - name: Build Syphon.framework (universal)
+        run: |
+          set -euo pipefail
+          cd vendor/syphon-src
+          xcodebuild -project Syphon.xcodeproj -scheme Syphon -configuration Release \
+            -derivedDataPath build SYMROOT="$PWD/build" ONLY_ACTIVE_ARCH=NO
+          cd "$GITHUB_WORKSPACE"
+          rm -rf vendor/Syphon.framework
+          cp -R vendor/syphon-src/build/Release/Syphon.framework vendor/Syphon.framework
 
       - name: Fetch LINE Seed JP (bundled by the GUI)
         run: ./scripts/fetch-fonts.sh
 
       - uses: dtolnay/rust-toolchain@stable
         with:
-          targets: ${{ matrix.target }}
+          targets: aarch64-apple-darwin,x86_64-apple-darwin
 
       - uses: Swatinem/rust-cache@v2
 
-      - name: Build release binaries (CLI + GUI)
-        run: cargo build --release --features gui --target ${{ matrix.target }}
+      - name: Build both arches (CLI + GUI)
+        run: |
+          cargo build --release --features gui --target aarch64-apple-darwin
+          cargo build --release --features gui --target x86_64-apple-darwin
 
-      - name: Package
+      - name: Package universal
         env:
           TAG: ${{ needs.release-please.outputs.tag_name }}
-          TARGET: ${{ matrix.target }}
-          NAME: ${{ matrix.name }}
         run: |
           set -euo pipefail
-          # TAG is already "ndi-share-vX.Y.Z" (release-please package tag), so the
-          # stage name is just "${TAG}-${NAME}" — no extra "ndi-share-" prefix.
-          stage="${TAG}-${NAME}"
+          stage="${TAG}-macos-universal"
           mkdir -p "$stage"
-          cp "target/${TARGET}/release/ndi-share" "$stage/"
-          cp "target/${TARGET}/release/ndi-share-gui" "$stage/"
+          # Combine each per-arch binary into one universal Mach-O.
+          for bin in ndi-share ndi-share-gui; do
+            lipo -create \
+              "target/aarch64-apple-darwin/release/$bin" \
+              "target/x86_64-apple-darwin/release/$bin" \
+              -output "$stage/$bin"
+          done
           cp -R vendor/Syphon.framework "$stage/"
           cp README.md README.en.md THIRD-PARTY-NOTICES "$stage/"
-          # Let the binaries find the colocated Syphon.framework at runtime.
-          # (Syphon's install name is @rpath/...; libndi must be installed via
-          # `brew install libndi`, per the README.)
+          # Let the binaries find the colocated (universal) Syphon.framework at
+          # runtime. (libndi must be installed via `brew install libndi`.)
           install_name_tool -add_rpath @loader_path "$stage/ndi-share"
           install_name_tool -add_rpath @loader_path "$stage/ndi-share-gui"
           tar -czf "${stage}.tar.gz" "$stage"
