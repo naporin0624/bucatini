@@ -1,8 +1,12 @@
 name: CI
 
-# Fast, reliable PR/main checks on the verified platform (macOS).
-# Windows/Spout is experimental and unverified; it is intentionally NOT built
-# here — the old NDI-SDK silent installer hung for hours and blocked every PR.
+# Cheap PR/main checks only. macOS runners bill at 10x, so we intentionally do
+# NOT build/clippy/test here — that needs macOS (Syphon + libndi) and is covered
+# by the local rusty-hook gates (pre-commit fmt+clippy, pre-push test) and by the
+# macOS build in release.yml (which runs only on an actual release).
+#
+# `cargo fmt --check` only parses source (no compile, no deps), so it runs on a
+# cheap Linux runner.
 
 on:
   push:
@@ -10,30 +14,16 @@ on:
   pull_request:
 
 jobs:
-  macos:
-    name: macOS build & test
-    runs-on: macos-14
-    timeout-minutes: 30
+  fmt:
+    name: Format check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with:
-          submodules: recursive
-
-      - name: Install libndi (NDI runtime)
-        run: brew install libndi
-
-      - name: Build Syphon.framework
-        run: ./scripts/setup-syphon.sh
-
-      - name: Fetch LINE Seed JP (bundled by the GUI)
-        run: ./scripts/fetch-fonts.sh
 
       - uses: dtolnay/rust-toolchain@stable
+        with:
+          components: rustfmt
 
-      - uses: Swatinem/rust-cache@v2
-
-      - name: Test
-        run: cargo test --verbose
-
-      - name: Build CLI + GUI
-        run: cargo build --features gui --verbose
+      - name: Format check
+        run: cargo fmt --all -- --check

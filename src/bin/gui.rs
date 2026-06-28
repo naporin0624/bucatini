@@ -1,14 +1,14 @@
-//! Minimal launcher GUI for ndi-share.
+//! Minimal launcher GUI for bucatini.
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver as MpscReceiver, Sender};
 use std::sync::{Arc, Mutex};
 use std::thread;
 
+use bucatini::ndi::{Finder, Ndi, Receiver, Source};
+use bucatini::output::make_output;
+use bucatini::run::run_capture_loop;
 use eframe::egui;
-use ndi_share::ndi::{Finder, Ndi, Receiver, Source};
-use ndi_share::output::make_output;
-use ndi_share::run::run_capture_loop;
 use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
 use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
 
@@ -39,12 +39,16 @@ fn build_tray() -> Option<TrayState> {
     menu.append(&PredefinedMenuItem::separator()).ok()?;
     menu.append(&quit).ok()?;
     let icon = TrayIconBuilder::new()
-        .with_tooltip("ndi-share")
+        .with_tooltip("Bucatini")
         .with_icon(tray_icon_image())
         .with_menu(Box::new(menu))
         .build()
         .ok()?;
-    Some(TrayState { _icon: icon, status, quit_id: quit.id().clone() })
+    Some(TrayState {
+        _icon: icon,
+        status,
+        quit_id: quit.id().clone(),
+    })
 }
 
 /// Install the bundled LINE Seed JP font and the cannelloni dark theme.
@@ -162,7 +166,7 @@ impl RunState {
 /// All FFI objects are created and dropped here — none cross threads.
 fn run_worker(source: &Source, name: &str, shared: &RunState) -> anyhow::Result<()> {
     let ndi = Ndi::new()?;
-    let receiver = Receiver::new(&ndi, source, "ndi-share")?;
+    let receiver = Receiver::new(&ndi, source, "Bucatini")?;
     let mut out = make_output(name)?;
     run_capture_loop(&receiver, &mut *out, &shared.stop, &shared.frames, false)?;
     Ok(())
@@ -244,7 +248,9 @@ impl GuiApp {
     }
 
     fn start(&mut self, ctx: &egui::Context) {
-        let Some(source) = self.sources.get(self.selected).cloned() else { return };
+        let Some(source) = self.sources.get(self.selected).cloned() else {
+            return;
+        };
         let name = source.name.clone();
         let shared = Arc::new(RunState::new());
         let worker_shared = shared.clone();
@@ -285,7 +291,10 @@ impl GuiApp {
                 .get(self.selected)
                 .map(|s| s.name.as_str())
                 .unwrap_or("?");
-            format!("{frames} frames\n{name}\n{}", ndi_share::output::output_kind())
+            format!(
+                "{frames} frames\n{name}\n{}",
+                bucatini::output::output_kind()
+            )
         } else if self.discovering {
             "searching\u{2026}".to_owned()
         } else if self.sources.is_empty() {
@@ -366,8 +375,8 @@ impl eframe::App for GuiApp {
 
         // Quit / show from the tray menu.
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
-            let is_quit = self.tray.as_ref().map_or(false, |t| ev.id == t.quit_id);
-            let is_show = self.tray.as_ref().map_or(false, |t| ev.id == t.status.id());
+            let is_quit = self.tray.as_ref().is_some_and(|t| ev.id == t.quit_id);
+            let is_show = self.tray.as_ref().is_some_and(|t| ev.id == t.status.id());
             if is_quit {
                 self.quit(&ctx);
             } else if is_show {
@@ -376,12 +385,15 @@ impl eframe::App for GuiApp {
         }
         // Left-click / double-click on the tray icon → show the window.
         while let Ok(ev) = TrayIconEvent::receiver().try_recv() {
-            if matches!(ev, TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }) {
+            if matches!(
+                ev,
+                TrayIconEvent::Click { .. } | TrayIconEvent::DoubleClick { .. }
+            ) {
                 show_window(&ctx);
             }
         }
 
-        ui.heading(format!("NDI \u{2192} {}", ndi_share::output::output_kind()));
+        ui.heading(format!("NDI \u{2192} {}", bucatini::output::output_kind()));
         ui.add_space(8.0);
 
         // Source row: refresh icon pinned to the right (its natural width), the
@@ -442,7 +454,10 @@ impl eframe::App for GuiApp {
         // Status row: always present (running=accent dot, idle=dim) so the line
         // doesn't appear/disappear and shift the layout vertically.
         if self.running.is_some() {
-            ui.colored_label(egui::Color32::from_rgb(0x39, 0x96, 0xFF), "\u{25CF} Running");
+            ui.colored_label(
+                egui::Color32::from_rgb(0x39, 0x96, 0xFF),
+                "\u{25CF} Running",
+            );
         } else {
             ui.colored_label(egui::Color32::from_rgb(0x69, 0x69, 0x69), "\u{25CB} Idle");
         }
@@ -453,7 +468,7 @@ impl eframe::App for GuiApp {
         if let Some(tray) = &self.tray {
             // Tray menu is single-line: collapse the info newlines into separators.
             tray.status.set_text(format!(
-                "ndi-share — {}",
+                "Bucatini — {}",
                 self.info_line().replace('\n', " \u{30FB} ")
             ));
         }
@@ -464,7 +479,9 @@ impl eframe::App for GuiApp {
         let content_h = ui.min_rect().height() + 16.0;
         if (content_h - self.fit_h).abs() > 1.0 {
             self.fit_h = content_h;
-            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(400.0, content_h)));
+            ctx.send_viewport_cmd(egui::ViewportCommand::InnerSize(egui::vec2(
+                400.0, content_h,
+            )));
         }
 
         ctx.request_repaint_after(std::time::Duration::from_millis(200));
@@ -472,17 +489,25 @@ impl eframe::App for GuiApp {
 }
 
 fn main() -> eframe::Result {
+    // Fixed-width launcher: the app fits the window height to its content each
+    // frame (see the InnerSize command in `ui`); width stays 400 and the window
+    // is non-resizable so the auto-fit never fights a manual drag.
+    let mut viewport = egui::ViewportBuilder::default()
+        .with_inner_size([400.0, 165.0])
+        .with_resizable(false);
+    // Window / Dock / taskbar icon, decoded from the bundled app icon PNG.
+    // Skip silently if decoding ever fails — the app still runs without an icon.
+    if let Ok(icon) =
+        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/icon/bucatini-1024.png"))
+    {
+        viewport = viewport.with_icon(icon);
+    }
     let options = eframe::NativeOptions {
-        // Fixed-width launcher: the app fits the window height to its content
-        // each frame (see the InnerSize command in `ui`); width stays 400 and the
-        // window is non-resizable so the auto-fit never fights a manual drag.
-        viewport: egui::ViewportBuilder::default()
-            .with_inner_size([400.0, 165.0])
-            .with_resizable(false),
+        viewport,
         ..Default::default()
     };
     eframe::run_native(
-        "ndi-share",
+        "Bucatini",
         options,
         Box::new(|cc| Ok(Box::new(GuiApp::new(&cc.egui_ctx)))),
     )

@@ -1,5 +1,5 @@
 [package]
-name = "ndi-share"
+name = "bucatini"
 version = "0.2.2"
 edition = "2021"
 description = "Receive an NDI source and republish it as a Syphon Metal texture (macOS)"
@@ -9,16 +9,16 @@ default = []
 gui = ["dep:eframe", "dep:tray-icon"]
 
 [[bin]]
-name = "ndi-share"
+name = "bucatini"
 path = "src/main.rs"
 
 [[bin]]
-name = "ndi-share-gui"
+name = "bucatini-gui"
 path = "src/bin/gui.rs"
 required-features = ["gui"]
 
 [lib]
-name = "ndi_share"
+name = "bucatini"
 path = "src/lib.rs"
 
 [dependencies]
@@ -30,3 +30,6 @@ tray-icon = { version = "0.24", optional = true }
 
 [build-dependencies]
 cc = "1"
+
+[dev-dependencies]
+rusty-hook = "0.11"

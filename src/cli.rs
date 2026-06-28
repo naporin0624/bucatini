@@ -1,7 +1,10 @@
 use clap::Parser;
 
 #[derive(Parser, Debug)]
-#[command(name = "ndi-share", about = "Republish an NDI source as a Syphon Metal texture")]
+#[command(
+    name = "bucatini",
+    about = "Republish an NDI source as a Syphon Metal texture"
+)]
 struct RawArgs {
     /// List discovered NDI sources and exit
     #[arg(long)]

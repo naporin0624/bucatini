@@ -3,9 +3,9 @@ use std::io::{self, Write};
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::Arc;
 
-use ndi_share::cli::{self, SourceMatch};
-use ndi_share::ndi::{Finder, Ndi, Receiver, Source};
-use ndi_share::output::{self, output_kind, SharedTextureOutput};
+use bucatini::cli::{self, SourceMatch};
+use bucatini::ndi::{Finder, Ndi, Receiver, Source};
+use bucatini::output::{self, output_kind, SharedTextureOutput};
 
 fn main() -> Result<()> {
     let args = cli::parse();
@@ -27,7 +27,7 @@ fn main() -> Result<()> {
     let source = select_source(&sources, &args.source)?;
     let server_name = args.name.clone().unwrap_or_else(|| source.name.clone());
 
-    let receiver = Receiver::new(&ndi, &source, "ndi-share")?;
+    let receiver = Receiver::new(&ndi, &source, "Bucatini")?;
     let mut out = output::make_output(&server_name)?;
 
     println!(
@@ -54,7 +54,11 @@ fn select_source(sources: &[Source], query: &Option<String>) -> Result<Source> {
     match query {
         Some(q) => match cli::match_source(&names, q) {
             SourceMatch::One(i) => Ok(sources[i].clone()),
-            SourceMatch::None => Err(anyhow!("no source matches '{}'. Available:\n{}", q, list_str(sources))),
+            SourceMatch::None => Err(anyhow!(
+                "no source matches '{}'. Available:\n{}",
+                q,
+                list_str(sources)
+            )),
             SourceMatch::Many(v) => Err(anyhow!(
                 "'{}' is ambiguous ({} matches). Be more specific:\n{}",
                 q,
@@ -94,7 +98,7 @@ fn run_loop(receiver: &Receiver, out: &mut dyn SharedTextureOutput, verbose: boo
         ctrlc::set_handler(move || r.store(false, Ordering::SeqCst))?;
     }
     let frames = AtomicU64::new(0);
-    ndi_share::run::run_capture_loop(receiver, out, &running, &frames, verbose)?;
+    bucatini::run::run_capture_loop(receiver, out, &running, &frames, verbose)?;
     println!("\nStopped.");
     Ok(())
 }

@@ -1,4 +1,9 @@
-#![allow(non_camel_case_types, non_snake_case, non_upper_case_globals, dead_code)]
+#![allow(
+    non_camel_case_types,
+    non_snake_case,
+    non_upper_case_globals,
+    dead_code
+)]
 
 use std::os::raw::{c_char, c_int, c_void};
 
@@ -56,7 +61,9 @@ pub struct NDIlib_video_frame_v2_t {
 
 extern "C" {
     pub fn NDIlib_initialize() -> bool;
-    pub fn NDIlib_find_create_v2(p_create_settings: *const NDIlib_find_create_t) -> NDIlib_find_instance_t;
+    pub fn NDIlib_find_create_v2(
+        p_create_settings: *const NDIlib_find_create_t,
+    ) -> NDIlib_find_instance_t;
     pub fn NDIlib_find_destroy(p_instance: NDIlib_find_instance_t);
     pub fn NDIlib_find_get_current_sources(
         p_instance: NDIlib_find_instance_t,
@@ -66,7 +73,9 @@ extern "C" {
         p_instance: NDIlib_find_instance_t,
         timeout_in_ms: u32,
     ) -> bool;
-    pub fn NDIlib_recv_create_v3(p_create_settings: *const NDIlib_recv_create_v3_t) -> NDIlib_recv_instance_t;
+    pub fn NDIlib_recv_create_v3(
+        p_create_settings: *const NDIlib_recv_create_v3_t,
+    ) -> NDIlib_recv_instance_t;
     pub fn NDIlib_recv_destroy(p_instance: NDIlib_recv_instance_t);
     pub fn NDIlib_recv_capture_v2(
         p_instance: NDIlib_recv_instance_t,

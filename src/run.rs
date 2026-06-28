@@ -134,7 +134,12 @@ mod tests {
     fn publishes_valid_frame() {
         let mut out = MockOutput { published: 0 };
         let data = vec![0u8; 16]; // 2x2, stride 8 -> 16 bytes
-        let frame = BgraFrame { data: &data, width: 2, height: 2, stride: 8 };
+        let frame = BgraFrame {
+            data: &data,
+            width: 2,
+            height: 2,
+            stride: 8,
+        };
         assert!(handle_video_frame(&mut out, &frame).unwrap());
         assert_eq!(out.published, 1);
     }
@@ -143,7 +148,12 @@ mod tests {
     fn skips_malformed_frame() {
         let mut out = MockOutput { published: 0 };
         let data = vec![0u8; 8]; // needs 16, has 8
-        let frame = BgraFrame { data: &data, width: 2, height: 2, stride: 8 };
+        let frame = BgraFrame {
+            data: &data,
+            width: 2,
+            height: 2,
+            stride: 8,
+        };
         assert!(!handle_video_frame(&mut out, &frame).unwrap());
         assert_eq!(out.published, 0);
     }
@@ -165,7 +175,12 @@ mod tests {
         ) -> CaptureSignal {
             if self.seen.get() < self.target {
                 self.seen.set(self.seen.get() + 1);
-                on_frame(BgraFrame { data: &self.buf, width: 2, height: 2, stride: 8 });
+                on_frame(BgraFrame {
+                    data: &self.buf,
+                    width: 2,
+                    height: 2,
+                    stride: 8,
+                });
                 CaptureSignal::Got
             } else {
                 self.stop.store(false, Ordering::SeqCst);
