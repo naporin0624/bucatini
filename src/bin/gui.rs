@@ -181,6 +181,9 @@ struct GuiApp {
     disco_rx: Option<MpscReceiver<DiscoverMsg>>,
     running: Option<RunHandle>,
     tray: Option<TrayState>,
+    /// Set to `true` when the user chooses Quit from the tray menu so the
+    /// close-interceptor lets the `Close` command through instead of hiding.
+    quitting: bool,
 }
 
 impl GuiApp {
@@ -194,6 +197,7 @@ impl GuiApp {
             disco_rx: None,
             running: None,
             tray: build_tray(),
+            quitting: false,
         };
         app.start_discovery(ctx);
         app
@@ -335,7 +339,9 @@ impl eframe::App for GuiApp {
         self.poll_running();
 
         // ✕ hides to tray instead of quitting; the receive worker keeps running.
-        if ui.ctx().input(|i| i.viewport().close_requested()) {
+        // When `quitting` is true (tray Quit was chosen), let the Close through
+        // so eframe actually exits — don't cancel it.
+        if !self.quitting && ui.ctx().input(|i| i.viewport().close_requested()) {
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::CancelClose);
             ui.ctx().send_viewport_cmd(egui::ViewportCommand::Visible(false));
         }
@@ -345,6 +351,7 @@ impl eframe::App for GuiApp {
             let is_quit = self.tray.as_ref().map_or(false, |t| ev.id == t.quit_id);
             let is_show = self.tray.as_ref().map_or(false, |t| ev.id == t.status.id());
             if is_quit {
+                self.quitting = true;
                 self.stop();
                 ui.ctx().send_viewport_cmd(egui::ViewportCommand::Close);
             } else if is_show {
