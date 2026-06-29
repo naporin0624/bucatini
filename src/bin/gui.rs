@@ -510,6 +510,21 @@ impl eframe::App for GuiApp {
     }
 }
 
+/// Format an integer with thousands separators (e.g. `1240` -> `"1,240"`).
+#[allow(dead_code)]
+fn group_thousands(n: u64) -> String {
+    let digits = n.to_string();
+    let len = digits.len();
+    let mut out = String::with_capacity(len + (len.saturating_sub(1)) / 3);
+    for (i, ch) in digits.char_indices() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 fn main() -> eframe::Result {
     // Fixed-width launcher: the app fits the window height to its content each
     // frame (see the InnerSize command in `ui`); width stays 400 and the window
@@ -533,4 +548,20 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| Ok(Box::new(GuiApp::new(&cc.egui_ctx)))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::group_thousands;
+
+    #[test]
+    fn groups_thousands_with_commas() {
+        assert_eq!(group_thousands(0), "0");
+        assert_eq!(group_thousands(42), "42");
+        assert_eq!(group_thousands(100), "100");
+        assert_eq!(group_thousands(999), "999");
+        assert_eq!(group_thousands(1_000), "1,000");
+        assert_eq!(group_thousands(1_240), "1,240");
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
+    }
 }
