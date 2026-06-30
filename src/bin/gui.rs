@@ -85,7 +85,7 @@ fn install_style(ctx: &egui::Context) {
     let text = Color32::from_rgb(0xEE, 0xEF, 0xF2);
     let text_muted = Color32::from_rgb(0xC9, 0xCC, 0xD2);
     let border = Color32::from_rgb(0x69, 0x69, 0x69);
-    let border_subtle = Color32::from_rgb(0x42, 0x42, 0x42);
+    let border_subtle = Color32::from_rgb(0x69, 0x69, 0x69);
     let border_strong = Color32::from_rgb(0x86, 0x86, 0x86);
     let accent = Color32::from_rgb(0x39, 0x96, 0xFF);
 
@@ -270,7 +270,7 @@ impl GuiApp {
             handle.shared.stop.store(false, Ordering::SeqCst);
             let _ = handle.join.join();
             let frames = handle.shared.frames.load(Ordering::SeqCst);
-            self.status = format!("Stopped after {frames} frames.");
+            self.status = format!("Stopped \u{00B7} {} frames", group_thousands(frames));
         }
     }
 
@@ -282,7 +282,20 @@ impl GuiApp {
         ctx.send_viewport_cmd(egui::ViewportCommand::Close);
     }
 
-    /// One-line status shown after `info:`.
+    /// One-line status for every non-live state (no leading glyph).
+    fn idle_label(&self) -> String {
+        if self.discovering {
+            "Searching\u{2026}".to_owned()
+        } else if self.sources.is_empty() {
+            "No NDI sources found".to_owned()
+        } else if self.status.is_empty() {
+            "Ready".to_owned()
+        } else {
+            self.status.clone()
+        }
+    }
+
+    /// Single-line summary for the tray menu (live folds onto one line).
     fn info_line(&self) -> String {
         if let Some(handle) = &self.running {
             let frames = handle.shared.frames.load(Ordering::SeqCst);
@@ -292,17 +305,13 @@ impl GuiApp {
                 .map(|s| s.name.as_str())
                 .unwrap_or("?");
             format!(
-                "{frames} frames\n{name}\n{}",
-                bucatini::output::output_kind()
+                "Live \u{00B7} {} frames \u{00B7} {} \"{}\"",
+                group_thousands(frames),
+                bucatini::output::output_kind(),
+                name
             )
-        } else if self.discovering {
-            "searching\u{2026}".to_owned()
-        } else if self.sources.is_empty() {
-            "no NDI sources".to_owned()
-        } else if self.status.is_empty() {
-            "ready".to_owned()
         } else {
-            self.status.clone()
+            self.idle_label()
         }
     }
 
@@ -426,28 +435,55 @@ impl GuiApp {
     }
 
     fn draw_status(&self, ui: &mut egui::Ui) {
-        // Status row is always present (running=accent dot, idle=dim) so the
-        // line never appears/disappears and shifts the layout vertically.
-        if self.running.is_some() {
-            ui.colored_label(
-                egui::Color32::from_rgb(0x39, 0x96, 0xFF),
-                "\u{25CF} Running",
+        use egui::{Color32, RichText};
+        const ACCENT: Color32 = Color32::from_rgb(0x39, 0x96, 0xFF);
+        const TEXT: Color32 = Color32::from_rgb(0xEE, 0xEF, 0xF2);
+        const TEXT_MUTED: Color32 = Color32::from_rgb(0xC9, 0xCC, 0xD2);
+        const TEXT_DIM: Color32 = Color32::from_rgb(0x9E, 0x9E, 0x9E);
+
+        if let Some(handle) = &self.running {
+            let frames = handle.shared.frames.load(Ordering::SeqCst);
+            let name = self
+                .sources
+                .get(self.selected)
+                .map(|s| s.name.as_str())
+                .unwrap_or("?");
+            // Line 1: accent dot as the live indicator, neutral text for the
+            // frame throughput (proof the stream is flowing).
+            ui.horizontal(|ui| {
+                ui.colored_label(ACCENT, "\u{25CF}");
+                ui.colored_label(
+                    TEXT,
+                    format!("Live \u{00B7} {} frames", group_thousands(frames)),
+                );
+            });
+            // Line 2: the published server name a downstream app selects.
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!(
+                        "Publishing as {} \"{}\"",
+                        bucatini::output::output_kind(),
+                        name
+                    ))
+                    .color(TEXT_MUTED),
+                )
+                .wrap(),
             );
         } else {
-            ui.colored_label(egui::Color32::from_rgb(0x69, 0x69, 0x69), "\u{25CB} Idle");
+            // Single dim line; wraps so a long error/status never widens the window.
+            ui.add(
+                egui::Label::new(
+                    RichText::new(format!("\u{25CB} {}", self.idle_label())).color(TEXT_DIM),
+                )
+                .wrap(),
+            );
         }
-        // Info line wraps within the window width, so a long status (frame
-        // count + source name) never widens the window.
-        ui.add(egui::Label::new(format!("info: {}", self.info_line())).wrap());
     }
 
     fn sync_tray_status(&self) {
         if let Some(tray) = &self.tray {
-            // Tray menu is single-line: collapse the info newlines into separators.
-            tray.status.set_text(format!(
-                "Bucatini — {}",
-                self.info_line().replace('\n', " \u{30FB} ")
-            ));
+            tray.status
+                .set_text(format!("Bucatini — {}", self.info_line()));
         }
     }
 
@@ -510,6 +546,20 @@ impl eframe::App for GuiApp {
     }
 }
 
+/// Format an integer with thousands separators (e.g. `1240` -> `"1,240"`).
+fn group_thousands(n: u64) -> String {
+    let digits = n.to_string();
+    let len = digits.len();
+    let mut out = String::with_capacity(len + (len.saturating_sub(1)) / 3);
+    for (i, ch) in digits.char_indices() {
+        if i > 0 && (len - i).is_multiple_of(3) {
+            out.push(',');
+        }
+        out.push(ch);
+    }
+    out
+}
+
 fn main() -> eframe::Result {
     // Fixed-width launcher: the app fits the window height to its content each
     // frame (see the InnerSize command in `ui`); width stays 400 and the window
@@ -533,4 +583,20 @@ fn main() -> eframe::Result {
         options,
         Box::new(|cc| Ok(Box::new(GuiApp::new(&cc.egui_ctx)))),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::group_thousands;
+
+    #[test]
+    fn groups_thousands_with_commas() {
+        assert_eq!(group_thousands(0), "0");
+        assert_eq!(group_thousands(42), "42");
+        assert_eq!(group_thousands(100), "100");
+        assert_eq!(group_thousands(999), "999");
+        assert_eq!(group_thousands(1_000), "1,000");
+        assert_eq!(group_thousands(1_240), "1,240");
+        assert_eq!(group_thousands(1_234_567), "1,234,567");
+    }
 }
