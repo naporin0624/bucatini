@@ -175,7 +175,12 @@ jobs:
           python packaging/make-ico.py assets/icon/bucatini-1024.png "$stage/bucatini.ico"
           choco install innosetup --no-progress -y
           $iscc = "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe"
-          & $iscc "/DMyAppVersion=$ver" "/DSourceDir=$stage" "/DOutputDir=dist" packaging/windows/bucatini.iss
+          # ISCC resolves relative paths (SetupIconFile, [Files] Source, OutputDir)
+          # against the .iss script's directory, not the CWD, so pass absolute
+          # paths for the staged inputs and the output directory.
+          $srcDir = (Resolve-Path $stage).Path
+          $outDir = Join-Path (Get-Location) "dist"
+          & $iscc "/DMyAppVersion=$ver" "/DSourceDir=$srcDir" "/DOutputDir=$outDir" packaging/windows/bucatini.iss
           "SETUP=dist/Bucatini-$ver-windows-x64-setup.exe" | Out-File -FilePath $env:GITHUB_ENV -Append -Encoding utf8
 
       - name: Upload to the GitHub release
