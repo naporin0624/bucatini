@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.1](https://github.com/naporin0624/bucatini/compare/bucatini-v0.4.0...bucatini-v0.4.1) (2026-07-02)
+
+
+### Bug Fixes
+
+* **ci:** pass absolute paths to ISCC for the Windows installer ([dc668b9](https://github.com/naporin0624/bucatini/commit/dc668b92b8a7d6a3036f680236e164c3ba14addc))
+* **ci:** pass absolute paths to ISCC for the Windows installer ([e508952](https://github.com/naporin0624/bucatini/commit/e508952d48e219ec4cb35e9fd94cdb64388e0fdc))
+
 ## [0.4.0](https://github.com/naporin0624/bucatini/compare/bucatini-v0.3.0...bucatini-v0.4.0) (2026-06-30)
 
 
