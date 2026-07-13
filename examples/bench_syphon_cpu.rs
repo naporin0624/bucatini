@@ -1,7 +1,9 @@
 //! CPU micro-benchmark for the Syphon output path (macOS only).
-//! Measures the current `SyphonOutput::publish` baseline at 1080p and 4K,
-//! reporting per-frame wall/CPU time, memcpy throughput, and single-core
-//! CPU% at 60 fps. No NDI source required.
+//! A/B/C-compares the three CPU->Syphon send strategies (PerFrameRowCopy,
+//! PersistentRowCopy, PersistentBulkCopy) at 1080p and 4K, reporting per-frame
+//! wall/CPU time, memcpy throughput, single-core CPU% at 60 fps, and CPU-time
+//! speedup vs the original PerFrameRowCopy. Names the fastest-by-CPU strategy
+//! per resolution. No NDI source required.
 
 #[cfg(not(target_os = "macos"))]
 fn main() {
@@ -10,6 +12,14 @@ fn main() {
 
 #[cfg(target_os = "macos")]
 fn main() -> anyhow::Result<()> {
+    use bucatini::output::syphon::SendMode;
+
+    let modes = [
+        ("PerFrameRowCopy", SendMode::PerFrameRowCopy),
+        ("PersistentRowCopy", SendMode::PersistentRowCopy),
+        ("PersistentBulkCopy", SendMode::PersistentBulkCopy),
+    ];
+
     // (label, width, height, frames, warmup)
     let cases = [
         ("1080p", 1920u32, 1080u32, 600u64, 60u64),
@@ -17,7 +27,7 @@ fn main() -> anyhow::Result<()> {
     ];
 
     for (label, width, height, frames, warmup) in cases {
-        bench_resolution(label, width, height, frames, warmup)?;
+        bench_resolution(label, width, height, frames, warmup, &modes)?;
     }
     Ok(())
 }
@@ -29,13 +39,13 @@ fn bench_resolution(
     height: u32,
     frames: u64,
     warmup: u64,
+    modes: &[(&str, bucatini::output::syphon::SendMode)],
 ) -> anyhow::Result<()> {
     use bucatini::bench_metrics::{
-        cpu_percent_at_fps, frame_bytes, per_frame_micros, throughput_mb_per_s,
+        cpu_percent_at_fps, frame_bytes, per_frame_micros, speedup_ratio, throughput_mb_per_s,
     };
-    use bucatini::output::syphon::SyphonOutput;
-    use bucatini::output::{BgraFrame, SharedTextureOutput};
-    use std::time::{Duration, Instant};
+    use bucatini::output::BgraFrame;
+    use std::time::Duration;
 
     let stride = width * 4;
     let bytes = frame_bytes(width, height);
@@ -55,42 +65,62 @@ fn bench_resolution(
     );
     println!("frames     : {frames} (warmup {warmup})");
     println!(
-        "{:<15} {:>12} {:>12} {:>12} {:>12}",
-        "mode", "wall us/f", "cpu us/f", "MB/s", "CPU%@60"
+        "{:<20} {:>12} {:>12} {:>12} {:>12} {:>12}",
+        "mode", "wall us/f", "cpu us/f", "MB/s", "CPU%@60", "speedup"
     );
 
-    let mut out = SyphonOutput::new("bucatini-bench")?;
-    let frame = BgraFrame {
-        data: &buf,
-        width,
-        height,
-        stride,
-    };
+    // CPU time per frame for each mode; index 0 is the PerFrameRowCopy baseline.
+    let mut baseline_cpu = Duration::ZERO;
+    let mut best: Option<(&str, Duration)> = None;
 
-    for _ in 0..warmup {
-        out.publish(&frame)?;
+    for (i, (name, mode)) in modes.iter().enumerate() {
+        // Fresh server per mode so cache state doesn't bleed between strategies.
+        let mut out = bucatini::output::syphon::SyphonOutput::new("bucatini-bench")?;
+        let frame = BgraFrame {
+            data: &buf,
+            width,
+            height,
+            stride,
+        };
+
+        for _ in 0..warmup {
+            out.publish_with_mode(&frame, *mode)?;
+        }
+
+        let cpu0 = thread_cpu_time();
+        let wall0 = std::time::Instant::now();
+        for _ in 0..frames {
+            out.publish_with_mode(&frame, *mode)?;
+        }
+        let wall = wall0.elapsed();
+        let cpu = thread_cpu_time().saturating_sub(cpu0);
+        drop(out);
+
+        let wall_us = per_frame_micros(wall, frames);
+        let cpu_us = per_frame_micros(cpu, frames);
+        let mb_s = throughput_mb_per_s(bytes, frames, wall);
+        let cpu_per_frame = cpu.checked_div(frames as u32).unwrap_or(Duration::ZERO);
+        let cpu_pct = cpu_percent_at_fps(cpu_per_frame, target_fps);
+
+        if i == 0 {
+            baseline_cpu = cpu;
+        }
+        let speedup = speedup_ratio(baseline_cpu, cpu);
+
+        println!(
+            "{:<20} {:>12.2} {:>12.2} {:>12.0} {:>12.2} {:>11.2}x",
+            name, wall_us, cpu_us, mb_s, cpu_pct, speedup
+        );
+
+        match best {
+            Some((_, best_cpu)) if best_cpu <= cpu => {}
+            _ => best = Some((name, cpu)),
+        }
     }
 
-    let cpu0 = thread_cpu_time();
-    let wall0 = Instant::now();
-    for _ in 0..frames {
-        out.publish(&frame)?;
+    if let Some((winner, _)) = best {
+        println!("WINNER (lowest CPU): {winner}");
     }
-    let wall = wall0.elapsed();
-    let cpu = thread_cpu_time().saturating_sub(cpu0);
-    drop(out);
-
-    let wall_us = per_frame_micros(wall, frames);
-    let cpu_us = per_frame_micros(cpu, frames);
-    let mb_s = throughput_mb_per_s(bytes, frames, wall);
-    let cpu_per_frame = cpu.checked_div(frames as u32).unwrap_or(Duration::ZERO);
-    let cpu_pct = cpu_percent_at_fps(cpu_per_frame, target_fps);
-
-    println!(
-        "{:<15} {:>12.2} {:>12.2} {:>12.0} {:>12.2}",
-        "baseline", wall_us, cpu_us, mb_s, cpu_pct
-    );
-
     Ok(())
 }
 
