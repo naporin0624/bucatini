@@ -1,5 +1,9 @@
 //! Minimal launcher GUI for bucatini.
 
+// Suppress the extra console window on Windows GUI launch (release builds only,
+// so debug builds keep stdout/stderr for troubleshooting).
+#![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
+
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver as MpscReceiver, Sender};
 use std::sync::{Arc, Mutex};
