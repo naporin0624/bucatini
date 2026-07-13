@@ -17,6 +17,37 @@ extern "C" {
         height: u32,
         bytes_per_row: u32,
     ) -> i32;
+    fn syphon_bridge_send_rgba_mode(
+        handle: SyphonBridgeHandle,
+        data: *const u8,
+        width: u32,
+        height: u32,
+        bytes_per_row: u32,
+        mode: u32,
+    ) -> i32;
+}
+
+/// CPU->Syphon send strategy, selectable for benchmarking. The numeric mapping
+/// matches the `mode` argument the ObjC++ bridge dispatches on.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum SendMode {
+    /// Per-frame IOSurface + MTLTexture allocation + row-by-row memcpy (original).
+    PerFrameRowCopy,
+    /// Cached IOSurface + MTLTexture reused across frames + row-by-row memcpy.
+    PersistentRowCopy,
+    /// Cached surface, single bulk memcpy when the frame stride equals the
+    /// surface's row pitch, else falls back to row-by-row.
+    PersistentBulkCopy,
+}
+
+impl SendMode {
+    pub fn as_u32(self) -> u32 {
+        match self {
+            SendMode::PerFrameRowCopy => 0,
+            SendMode::PersistentRowCopy => 1,
+            SendMode::PersistentBulkCopy => 2,
+        }
+    }
 }
 
 pub struct SyphonOutput {
@@ -31,6 +62,26 @@ impl SyphonOutput {
             return Err(anyhow!("syphon_bridge_create failed (Metal/Syphon init)"));
         }
         Ok(SyphonOutput { handle })
+    }
+
+    /// Publish via a specific send strategy. Used by the CPU benchmark to A/B/C
+    /// the strategies; production `publish` uses the shipped winner.
+    pub fn publish_with_mode(&mut self, frame: &BgraFrame, mode: SendMode) -> Result<()> {
+        let rc = unsafe {
+            syphon_bridge_send_rgba_mode(
+                self.handle,
+                frame.data.as_ptr(),
+                frame.width,
+                frame.height,
+                frame.stride,
+                mode.as_u32(),
+            )
+        };
+        if rc == 0 {
+            Ok(())
+        } else {
+            Err(anyhow!("syphon_bridge_send_rgba_mode returned {rc}"))
+        }
     }
 }
 
@@ -59,9 +110,92 @@ impl Drop for SyphonOutput {
     }
 }
 
+type SyphonRecvHandle = *mut c_void;
+
+extern "C" {
+    fn syphon_recv_create() -> SyphonRecvHandle;
+    fn syphon_recv_destroy(handle: SyphonRecvHandle);
+    fn syphon_recv_grab(
+        handle: SyphonRecvHandle,
+        name: *const c_char,
+        buf: *mut u8,
+        max_w: u32,
+        max_h: u32,
+        out_w: *mut u32,
+        out_h: *mut u32,
+        timeout_ms: u32,
+    ) -> i32;
+}
+
+/// A Syphon receiver that reads a named server's published frame back into a CPU
+/// BGRA buffer. Used by the color-verification harness to prove the send path.
+pub struct SyphonReceiver {
+    handle: SyphonRecvHandle,
+}
+
+impl SyphonReceiver {
+    pub fn new() -> Result<SyphonReceiver> {
+        let handle = unsafe { syphon_recv_create() };
+        if handle.is_null() {
+            return Err(anyhow!("syphon_recv_create failed (Metal init)"));
+        }
+        Ok(SyphonReceiver { handle })
+    }
+
+    /// Poll up to `timeout_ms` for a frame from server `name`. On success returns
+    /// `(buf, width, height)` where `buf` is tightly packed BGRA (stride = w*4).
+    pub fn grab(
+        &mut self,
+        name: &str,
+        timeout_ms: u32,
+        max_w: u32,
+        max_h: u32,
+    ) -> Result<(Vec<u8>, u32, u32)> {
+        let c_name = CString::new(name)?;
+        let mut buf = vec![0u8; (max_w as usize) * (max_h as usize) * 4];
+        let mut out_w: u32 = 0;
+        let mut out_h: u32 = 0;
+        let rc = unsafe {
+            syphon_recv_grab(
+                self.handle,
+                c_name.as_ptr(),
+                buf.as_mut_ptr(),
+                max_w,
+                max_h,
+                &mut out_w,
+                &mut out_h,
+                timeout_ms,
+            )
+        };
+        match rc {
+            0 => {
+                buf.truncate((out_w as usize) * (out_h as usize) * 4);
+                Ok((buf, out_w, out_h))
+            }
+            -2 => Err(anyhow!(
+                "server {out_w}x{out_h} exceeds receiver capacity {max_w}x{max_h}"
+            )),
+            _ => Err(anyhow!("syphon_recv_grab timed out (no server '{name}')")),
+        }
+    }
+}
+
+impl Drop for SyphonReceiver {
+    fn drop(&mut self) {
+        unsafe { syphon_recv_destroy(self.handle) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn send_mode_maps_to_bridge_dispatch_codes() {
+        assert_eq!(SendMode::PerFrameRowCopy.as_u32(), 0);
+        assert_eq!(SendMode::PersistentRowCopy.as_u32(), 1);
+        assert_eq!(SendMode::PersistentBulkCopy.as_u32(), 2);
+    }
 
     #[test]
     fn publishes_a_synthetic_frame() {
