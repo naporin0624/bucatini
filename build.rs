@@ -36,9 +36,12 @@ fn build_macos_syphon() {
 
     println!("cargo:rerun-if-changed=vendor/cpp/syphon_bridge.mm");
     println!("cargo:rerun-if-changed=vendor/cpp/syphon_bridge.h");
+    println!("cargo:rerun-if-changed=vendor/cpp/syphon_recv_bridge.mm");
+    println!("cargo:rerun-if-changed=vendor/cpp/syphon_recv_bridge.h");
 
     cc::Build::new()
         .file("vendor/cpp/syphon_bridge.mm")
+        .file("vendor/cpp/syphon_recv_bridge.mm")
         .include("vendor/cpp")
         .flag("-ObjC++")
         .flag("-std=c++17")

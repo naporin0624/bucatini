@@ -110,6 +110,82 @@ impl Drop for SyphonOutput {
     }
 }
 
+type SyphonRecvHandle = *mut c_void;
+
+extern "C" {
+    fn syphon_recv_create() -> SyphonRecvHandle;
+    fn syphon_recv_destroy(handle: SyphonRecvHandle);
+    fn syphon_recv_grab(
+        handle: SyphonRecvHandle,
+        name: *const c_char,
+        buf: *mut u8,
+        max_w: u32,
+        max_h: u32,
+        out_w: *mut u32,
+        out_h: *mut u32,
+        timeout_ms: u32,
+    ) -> i32;
+}
+
+/// A Syphon receiver that reads a named server's published frame back into a CPU
+/// BGRA buffer. Used by the color-verification harness to prove the send path.
+pub struct SyphonReceiver {
+    handle: SyphonRecvHandle,
+}
+
+impl SyphonReceiver {
+    pub fn new() -> Result<SyphonReceiver> {
+        let handle = unsafe { syphon_recv_create() };
+        if handle.is_null() {
+            return Err(anyhow!("syphon_recv_create failed (Metal init)"));
+        }
+        Ok(SyphonReceiver { handle })
+    }
+
+    /// Poll up to `timeout_ms` for a frame from server `name`. On success returns
+    /// `(buf, width, height)` where `buf` is tightly packed BGRA (stride = w*4).
+    pub fn grab(
+        &mut self,
+        name: &str,
+        timeout_ms: u32,
+        max_w: u32,
+        max_h: u32,
+    ) -> Result<(Vec<u8>, u32, u32)> {
+        let c_name = CString::new(name)?;
+        let mut buf = vec![0u8; (max_w as usize) * (max_h as usize) * 4];
+        let mut out_w: u32 = 0;
+        let mut out_h: u32 = 0;
+        let rc = unsafe {
+            syphon_recv_grab(
+                self.handle,
+                c_name.as_ptr(),
+                buf.as_mut_ptr(),
+                max_w,
+                max_h,
+                &mut out_w,
+                &mut out_h,
+                timeout_ms,
+            )
+        };
+        match rc {
+            0 => {
+                buf.truncate((out_w as usize) * (out_h as usize) * 4);
+                Ok((buf, out_w, out_h))
+            }
+            -2 => Err(anyhow!(
+                "server {out_w}x{out_h} exceeds receiver capacity {max_w}x{max_h}"
+            )),
+            _ => Err(anyhow!("syphon_recv_grab timed out (no server '{name}')")),
+        }
+    }
+}
+
+impl Drop for SyphonReceiver {
+    fn drop(&mut self) {
+        unsafe { syphon_recv_destroy(self.handle) };
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
