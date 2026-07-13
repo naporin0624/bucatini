@@ -1,5 +1,22 @@
 # Changelog
 
+## [0.4.2](https://github.com/naporin0624/bucatini/compare/bucatini-v0.4.1...bucatini-v0.4.2) (2026-07-13)
+
+
+### Bug Fixes
+
+* **gui:** suppress console window on Windows GUI launch ([88a8d00](https://github.com/naporin0624/bucatini/commit/88a8d00372f9df9fe4064d6bfbc7c036912d7e97))
+* **gui:** suppress console window on Windows GUI launch ([3946011](https://github.com/naporin0624/bucatini/commit/3946011d5b3047d0ce8fc125a0f652fa12a4a4cb))
+
+
+### Performance Improvements
+
+* **spout:** faster CPU-&gt;GPU send via SSE2 staging copy + verification harness ([0ed20a6](https://github.com/naporin0624/bucatini/commit/0ed20a6ed1e91dac2e9c1e19905421cdf59f70a8))
+* **spout:** faster CPU-&gt;GPU send via SSE2 staging copy + verification harness ([bbea0f1](https://github.com/naporin0624/bucatini/commit/bbea0f1b5f8bacbce4e21eae649d63dd906a273b))
+* **syphon:** add macOS CPU baseline benchmark for Syphon output ([8a30887](https://github.com/naporin0624/bucatini/commit/8a30887cf2ecae3ffabd01c950ebb9b1082c3943))
+* **syphon:** reuse IOSurface/MTLTexture across frames (4.53x/3.24x CPU reduction) ([55dd0b4](https://github.com/naporin0624/bucatini/commit/55dd0b4b6f7311077fd1d102608efb1cfc7c1c33))
+* **syphon:** reuse IOSurface/MTLTexture across frames, 3-way bench, wire winner ([dbed548](https://github.com/naporin0624/bucatini/commit/dbed5487e91dcecdf73d900480b62be44573299e))
+
 ## [0.4.1](https://github.com/naporin0624/bucatini/compare/bucatini-v0.4.0...bucatini-v0.4.1) (2026-07-02)
 
 
