@@ -96,10 +96,13 @@ fn build_windows_spout() {
 
     println!("cargo:rerun-if-changed=vendor/cpp/spout_bridge.cpp");
     println!("cargo:rerun-if-changed=vendor/cpp/spout_bridge.h");
+    println!("cargo:rerun-if-changed=vendor/cpp/spout_recv_bridge.cpp");
+    println!("cargo:rerun-if-changed=vendor/cpp/spout_recv_bridge.h");
 
     cc::Build::new()
         .cpp(true)
         .file("vendor/cpp/spout_bridge.cpp")
+        .file("vendor/cpp/spout_recv_bridge.cpp")
         .file(spout_dx.join("SpoutDX.cpp"))
         .file(spout_gl.join("SpoutDirectX.cpp"))
         .file(spout_gl.join("SpoutSenderNames.cpp"))
