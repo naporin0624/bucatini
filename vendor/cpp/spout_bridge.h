@@ -29,6 +29,15 @@ int spout_bridge_send_rgba(SpoutBridgeHandle handle,
                            uint32_t height,
                            uint32_t bytes_per_row);
 
+// Send strategies, exposed for benchmarking. spout_bridge_send_rgba() dispatches
+// to the strategy chosen as the production winner.
+//   0 = DYNAMIC staging + row-by-row memcpy + SendTexture   (original)
+//   1 = SendImage: UpdateSubresource straight into the shared texture (no staging)
+//   2 = DYNAMIC staging + SpoutCopy SSE2 (pitch-aware) + SendTexture
+int spout_bridge_send_rgba_mode(SpoutBridgeHandle handle,
+                                const uint8_t* data, uint32_t width, uint32_t height,
+                                uint32_t bytes_per_row, uint32_t mode);
+
 #ifdef __cplusplus
 }
 #endif
