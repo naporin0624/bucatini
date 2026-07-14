@@ -258,7 +258,7 @@ impl GuiApp {
             let tray_action = self.tray.as_ref().and_then(|t| t.action_for(&ev.id));
             let menu_action = self.app_menu.as_ref().and_then(|m| m.action_for(&ev.id));
             match (tray_action, menu_action) {
-                (Some(TrayAction::Quit), _) => self.quit(ctx),
+                (Some(TrayAction::Quit), _) | (_, Some(MenuAction::Quit)) => self.quit(ctx),
                 (Some(TrayAction::Show), _) => show_window(ctx),
                 (Some(TrayAction::OpenUsage), _) | (_, Some(MenuAction::OpenUsage)) => {
                     self.usage.request_open(ctx);

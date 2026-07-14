@@ -5,14 +5,17 @@
 //! every target; only the `Menu::init_for_nsapp` call inside `build_app_menu` —
 //! which installs the menu as the app's NSApp main menu — is macOS-only.
 
+use muda::accelerator::{Accelerator, Code, Modifiers};
 use muda::{AboutMetadata, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 
-/// What the running app should do in response to a menu activation. `About` and
-/// `Quit` are native `PredefinedMenuItem`s handled entirely by the OS (or by muda
-/// itself for `Quit` on non-macOS platforms) — they never surface here.
+/// What the running app should do in response to a menu activation. `About` is
+/// a native `PredefinedMenuItem` handled entirely by the OS — it never surfaces
+/// here. `Quit` is a custom item (see `build_app_menu`'s doc comment for why
+/// `PredefinedMenuItem::quit` isn't used) and does surface here.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     OpenUsage,
+    Quit,
 }
 
 /// Assembles this app's `AboutMetadata`. Kept as a pure function (no globals, no
@@ -29,11 +32,17 @@ pub fn about_metadata() -> AboutMetadata {
     }
 }
 
-/// Maps a fired `MenuEvent`'s id to the `MenuAction` it represents. `None` covers
-/// ids muda already handled natively (About, Quit) or any id from a menu we
+/// Maps a fired `MenuEvent`'s id to the `MenuAction` it represents. `None`
+/// covers ids muda already handled natively (About) or any id from a menu we
 /// didn't build.
-fn action_for(event_id: &MenuId, usage_id: &MenuId) -> Option<MenuAction> {
-    (event_id == usage_id).then_some(MenuAction::OpenUsage)
+fn action_for(event_id: &MenuId, usage_id: &MenuId, quit_id: &MenuId) -> Option<MenuAction> {
+    if event_id == usage_id {
+        Some(MenuAction::OpenUsage)
+    } else if event_id == quit_id {
+        Some(MenuAction::Quit)
+    } else {
+        None
+    }
 }
 
 /// The app's native menu bar, plus the id needed to recognize its one custom item.
@@ -46,12 +55,13 @@ pub struct AppMenu {
     #[allow(dead_code)]
     menu: Menu,
     usage_id: MenuId,
+    quit_id: MenuId,
 }
 
 impl AppMenu {
     /// Maps a fired `MenuEvent`'s id to this menu's `MenuAction`, if any.
     pub fn action_for(&self, id: &MenuId) -> Option<MenuAction> {
-        action_for(id, &self.usage_id)
+        action_for(id, &self.usage_id, &self.quit_id)
     }
 }
 
@@ -69,13 +79,28 @@ pub fn build_app_menu() -> Result<AppMenu, muda::Error> {
         None,
     );
 
+    // Not `PredefinedMenuItem::quit`: its native action is `[NSApp terminate:]`,
+    // which bypasses `MenuEvent` entirely and exits before the NDI/Syphon worker
+    // thread can be signaled and joined, so the worker's Drop cleanup (e.g.
+    // un-publishing the Syphon server) never runs. A custom item routes through
+    // `action_for` → `MenuAction::Quit` → `GuiApp::quit`, same as the tray's
+    // quit item, so shutdown always goes through the worker join.
+    let quit_id = MenuId::new("bucatini-quit");
+    let quit_accelerator = Accelerator::new(Some(Modifiers::META), Code::KeyQ);
+    let quit_item = MenuItem::with_id(
+        quit_id.clone(),
+        "Quit bucatini",
+        true,
+        Some(quit_accelerator),
+    );
+
     let app_submenu = Submenu::with_items(
         "bucatini",
         true,
         &[
             &PredefinedMenuItem::about(None, Some(about_metadata())),
             &PredefinedMenuItem::separator(),
-            &PredefinedMenuItem::quit(None),
+            &quit_item,
         ],
     )?;
     let help_submenu = Submenu::with_items("Help", true, &[&usage_item])?;
@@ -85,7 +110,11 @@ pub fn build_app_menu() -> Result<AppMenu, muda::Error> {
     #[cfg(target_os = "macos")]
     menu.init_for_nsapp();
 
-    Ok(AppMenu { menu, usage_id })
+    Ok(AppMenu {
+        menu,
+        usage_id,
+        quit_id,
+    })
 }
 
 #[cfg(test)]
@@ -113,18 +142,31 @@ mod tests {
     #[test]
     fn action_for_maps_the_usage_id_to_open_usage() {
         let usage_id = MenuId::new("bucatini-usage");
+        let quit_id = MenuId::new("bucatini-quit");
 
         assert_eq!(
-            action_for(&usage_id, &usage_id),
+            action_for(&usage_id, &usage_id, &quit_id),
             Some(MenuAction::OpenUsage)
+        );
+    }
+
+    #[test]
+    fn action_for_maps_the_quit_id_to_quit() {
+        let usage_id = MenuId::new("bucatini-usage");
+        let quit_id = MenuId::new("bucatini-quit");
+
+        assert_eq!(
+            action_for(&quit_id, &usage_id, &quit_id),
+            Some(MenuAction::Quit)
         );
     }
 
     #[test]
     fn action_for_ignores_ids_it_does_not_recognize() {
         let usage_id = MenuId::new("bucatini-usage");
+        let quit_id = MenuId::new("bucatini-quit");
         let other_id = MenuId::new("some-other-item");
 
-        assert_eq!(action_for(&other_id, &usage_id), None);
+        assert_eq!(action_for(&other_id, &usage_id, &quit_id), None);
     }
 }
