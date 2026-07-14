@@ -20,7 +20,9 @@ use bucatini::output::make_output;
 use bucatini::run::run_capture_loop;
 use eframe::egui;
 use licenses::LicensesWindow;
-use menu::{build_app_menu, AppMenu, MenuAction};
+#[cfg(target_os = "macos")]
+use menu::build_app_menu;
+use menu::{AppMenu, MenuAction};
 use theme::install_style;
 use tray::{build_tray, AppTray, TrayAction};
 use tray_icon::menu::MenuEvent;
@@ -79,7 +81,8 @@ struct GuiApp {
     running: Option<RunHandle>,
     tray: Option<AppTray>,
     /// `None` when `build_app_menu` failed — the app still runs without a
-    /// native menu bar (same failure-tolerance as `tray`).
+    /// native menu bar (same failure-tolerance as `tray`) — or unconditionally
+    /// on non-macOS, where no native menu bar is installed at all (see `new`).
     app_menu: Option<AppMenu>,
     usage: UsageWindow,
     licenses: LicensesWindow,
@@ -95,6 +98,15 @@ impl GuiApp {
         install_style(ctx);
         // eframe has already created NSApplication by the time `new` runs, so
         // installing the app menu here (rather than in `main`) is safe on macOS.
+        // Elsewhere (Windows/Linux) there is no NSApp main menu to install into,
+        // so `app_menu` stays `None` and `poll_native_events` below never has an
+        // `AppMenu` to route accelerators through — the field itself stays
+        // unconditional so that routing code doesn't need its own cfg split.
+        #[cfg(target_os = "macos")]
+        let app_menu = build_app_menu().ok();
+        #[cfg(not(target_os = "macos"))]
+        let app_menu = None;
+
         let mut app = GuiApp {
             sources: Vec::new(),
             selected: 0,
@@ -103,7 +115,7 @@ impl GuiApp {
             disco_rx: None,
             running: None,
             tray: build_tray().ok(),
-            app_menu: build_app_menu().ok(),
+            app_menu,
             usage: UsageWindow::default(),
             licenses: LicensesWindow::default(),
             quitting: false,
@@ -346,11 +358,8 @@ impl GuiApp {
     }
 
     fn draw_status(&self, ui: &mut egui::Ui) {
-        use egui::{Color32, RichText};
-        const ACCENT: Color32 = Color32::from_rgb(0x39, 0x96, 0xFF);
-        const TEXT: Color32 = Color32::from_rgb(0xEE, 0xEF, 0xF2);
-        const TEXT_MUTED: Color32 = Color32::from_rgb(0xC9, 0xCC, 0xD2);
-        const TEXT_DIM: Color32 = Color32::from_rgb(0x9E, 0x9E, 0x9E);
+        use egui::RichText;
+        use theme::tokens::{ACCENT, TEXT, TEXT_DIM, TEXT_MUTED};
 
         if let Some(handle) = &self.running {
             let frames = handle.shared.frames.load(Ordering::SeqCst);

@@ -6,6 +6,8 @@ use std::sync::OnceLock;
 
 use eframe::egui;
 
+use crate::theme::tokens::{SURFACE as BG_MUTED, TEXT_DIM as TEXT_SUBTLE, TEXT_MUTED};
+
 /// Which of the three sources a license entry came from. `Font`/`Native` entries come
 /// from the hand-written appendix (Syphon Framework, LINE Seed JP, \u{2026}) that
 /// `cargo xtask gen-licenses` merges in; `Library` is every Rust crate dependency
@@ -71,12 +73,7 @@ fn license_badge_text(license: &str) -> String {
     license.replace(" OR ", " / ")
 }
 
-// Local color tokens, mirroring the pattern already used by
-// `GuiApp::draw_status` in main.rs (this crate has no shared `theme::tokens`
-// module to draw from).
-const TEXT_SUBTLE: egui::Color32 = egui::Color32::from_rgb(0x9E, 0x9E, 0x9E);
-const TEXT_MUTED: egui::Color32 = egui::Color32::from_rgb(0xC9, 0xCC, 0xD2);
-const BG_MUTED: egui::Color32 = egui::Color32::from_rgb(0x1C, 0x1C, 0x1C);
+// Used only here — not promoted to a shared token.
 const DANGER: egui::Color32 = egui::Color32::from_rgb(0xFF, 0x6B, 0x6B);
 
 fn category_toggle(

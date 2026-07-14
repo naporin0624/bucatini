@@ -11,9 +11,17 @@ mod normalize;
 mod render;
 mod sort;
 
+/// Kept in one place so the install hint below (`XtaskError::Spawn`) can't drift from
+/// what CI actually installs (`.github/workflows/ci.yml`'s own `cargo install` step).
+const CARGO_BUNDLE_LICENSES_VERSION: &str = "4.2.0";
+
 #[derive(Debug, thiserror::Error)]
 enum XtaskError {
-    #[error("failed to spawn `{command}`: {source}")]
+    #[error(
+        "failed to spawn `{command}`: {source}\n\
+         install it with: cargo install cargo-bundle-licenses --version {version} --locked",
+        version = CARGO_BUNDLE_LICENSES_VERSION
+    )]
     Spawn {
         command: String,
         source: std::io::Error,

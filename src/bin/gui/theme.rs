@@ -1,5 +1,19 @@
 use eframe::egui;
 
+/// Colors shared by more than one module. `install_style` below is the source of truth
+/// for the cannelloni theme's full palette; only the subset other modules (`main.rs`
+/// status line, `licenses.rs` viewer) also need is re-exported here, so those callers
+/// can't drift out of sync with the palette `install_style` actually applies.
+pub mod tokens {
+    use eframe::egui::Color32;
+
+    pub const SURFACE: Color32 = Color32::from_rgb(0x1C, 0x1C, 0x1C);
+    pub const TEXT: Color32 = Color32::from_rgb(0xEE, 0xEF, 0xF2);
+    pub const TEXT_MUTED: Color32 = Color32::from_rgb(0xC9, 0xCC, 0xD2);
+    pub const TEXT_DIM: Color32 = Color32::from_rgb(0x9E, 0x9E, 0x9E);
+    pub const ACCENT: Color32 = Color32::from_rgb(0x39, 0x96, 0xFF);
+}
+
 /// Install the bundled LINE Seed JP font and the cannelloni dark theme.
 pub fn install_style(ctx: &egui::Context) {
     use std::sync::Arc;
@@ -28,15 +42,15 @@ pub fn install_style(ctx: &egui::Context) {
     // --- Theme: cannelloni (dark, neo-brutalist: 0 corners, visible borders, no shadow). ---
     use egui::{Color32, CornerRadius, Stroke};
     let canvas = Color32::from_rgb(0x12, 0x12, 0x12);
-    let surface = Color32::from_rgb(0x1C, 0x1C, 0x1C);
+    let surface = tokens::SURFACE;
     let muted = Color32::from_rgb(0x26, 0x26, 0x26);
     let emphasis = Color32::from_rgb(0x2E, 0x2E, 0x2E);
-    let text = Color32::from_rgb(0xEE, 0xEF, 0xF2);
-    let text_muted = Color32::from_rgb(0xC9, 0xCC, 0xD2);
+    let text = tokens::TEXT;
+    let text_muted = tokens::TEXT_MUTED;
     let border = Color32::from_rgb(0x69, 0x69, 0x69);
     let border_subtle = Color32::from_rgb(0x69, 0x69, 0x69);
     let border_strong = Color32::from_rgb(0x86, 0x86, 0x86);
-    let accent = Color32::from_rgb(0x39, 0x96, 0xFF);
+    let accent = tokens::ACCENT;
 
     let mut v = egui::Visuals::dark();
     v.panel_fill = canvas;
