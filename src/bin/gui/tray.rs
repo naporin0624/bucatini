@@ -17,6 +17,7 @@ const TRAY_ICON_BYTES: &[u8] = include_bytes!("../../../assets/icon/tray-44.png"
 pub enum TrayAction {
     Show,
     OpenUsage,
+    OpenLicenses,
     Quit,
 }
 
@@ -82,12 +83,15 @@ fn action_for(
     id: &MenuId,
     show_id: &MenuId,
     usage_id: &MenuId,
+    licenses_id: &MenuId,
     quit_id: &MenuId,
 ) -> Option<TrayAction> {
     if id == show_id {
         Some(TrayAction::Show)
     } else if id == usage_id {
         Some(TrayAction::OpenUsage)
+    } else if id == licenses_id {
+        Some(TrayAction::OpenLicenses)
     } else if id == quit_id {
         Some(TrayAction::Quit)
     } else {
@@ -105,13 +109,20 @@ pub struct AppTray {
     tray: TrayIcon,
     pub status: MenuItem,
     usage_id: MenuId,
+    licenses_id: MenuId,
     quit_id: MenuId,
 }
 
 impl AppTray {
     /// Maps a fired `MenuEvent`'s id to this tray's `TrayAction`, if any.
     pub fn action_for(&self, id: &MenuId) -> Option<TrayAction> {
-        action_for(id, self.status.id(), &self.usage_id, &self.quit_id)
+        action_for(
+            id,
+            self.status.id(),
+            &self.usage_id,
+            &self.licenses_id,
+            &self.quit_id,
+        )
     }
 }
 
@@ -120,12 +131,19 @@ impl AppTray {
 /// the caller via `action_for`); its text is updated live via `AppTray::status`.
 pub fn build_tray() -> Result<AppTray, TrayError> {
     let usage_id = MenuId::new("bucatini-tray-usage");
+    let licenses_id = MenuId::new("bucatini-tray-licenses");
     let quit_id = MenuId::new("bucatini-tray-quit");
 
     let status = MenuItem::new("Idle", true, None);
     let usage_item = MenuItem::with_id(
         usage_id.clone(),
         "\u{4F7F}\u{3044}\u{65B9}\u{2026}",
+        true,
+        None,
+    );
+    let licenses_item = MenuItem::with_id(
+        licenses_id.clone(),
+        "Open Source Licenses\u{2026}",
         true,
         None,
     );
@@ -136,6 +154,7 @@ pub fn build_tray() -> Result<AppTray, TrayError> {
         &PredefinedMenuItem::separator(),
         &PredefinedMenuItem::about(Some("About Bucatini\u{2026}"), Some(about_metadata())),
         &usage_item,
+        &licenses_item,
         &PredefinedMenuItem::separator(),
         &quit_item,
     ])?;
@@ -153,6 +172,7 @@ pub fn build_tray() -> Result<AppTray, TrayError> {
         tray,
         status,
         usage_id,
+        licenses_id,
         quit_id,
     })
 }
@@ -176,10 +196,11 @@ mod tests {
     fn action_for_maps_the_show_id_to_show() {
         let show_id = MenuId::new("bucatini-tray-show");
         let usage_id = MenuId::new("bucatini-tray-usage");
+        let licenses_id = MenuId::new("bucatini-tray-licenses");
         let quit_id = MenuId::new("bucatini-tray-quit");
 
         assert_eq!(
-            action_for(&show_id, &show_id, &usage_id, &quit_id),
+            action_for(&show_id, &show_id, &usage_id, &licenses_id, &quit_id),
             Some(TrayAction::Show)
         );
     }
@@ -188,11 +209,25 @@ mod tests {
     fn action_for_maps_the_usage_id_to_open_usage() {
         let show_id = MenuId::new("bucatini-tray-show");
         let usage_id = MenuId::new("bucatini-tray-usage");
+        let licenses_id = MenuId::new("bucatini-tray-licenses");
         let quit_id = MenuId::new("bucatini-tray-quit");
 
         assert_eq!(
-            action_for(&usage_id, &show_id, &usage_id, &quit_id),
+            action_for(&usage_id, &show_id, &usage_id, &licenses_id, &quit_id),
             Some(TrayAction::OpenUsage)
+        );
+    }
+
+    #[test]
+    fn action_for_maps_the_licenses_id_to_open_licenses() {
+        let show_id = MenuId::new("bucatini-tray-show");
+        let usage_id = MenuId::new("bucatini-tray-usage");
+        let licenses_id = MenuId::new("bucatini-tray-licenses");
+        let quit_id = MenuId::new("bucatini-tray-quit");
+
+        assert_eq!(
+            action_for(&licenses_id, &show_id, &usage_id, &licenses_id, &quit_id),
+            Some(TrayAction::OpenLicenses)
         );
     }
 
@@ -200,10 +235,11 @@ mod tests {
     fn action_for_maps_the_quit_id_to_quit() {
         let show_id = MenuId::new("bucatini-tray-show");
         let usage_id = MenuId::new("bucatini-tray-usage");
+        let licenses_id = MenuId::new("bucatini-tray-licenses");
         let quit_id = MenuId::new("bucatini-tray-quit");
 
         assert_eq!(
-            action_for(&quit_id, &show_id, &usage_id, &quit_id),
+            action_for(&quit_id, &show_id, &usage_id, &licenses_id, &quit_id),
             Some(TrayAction::Quit)
         );
     }
@@ -212,9 +248,13 @@ mod tests {
     fn action_for_ignores_ids_it_does_not_recognize() {
         let show_id = MenuId::new("bucatini-tray-show");
         let usage_id = MenuId::new("bucatini-tray-usage");
+        let licenses_id = MenuId::new("bucatini-tray-licenses");
         let quit_id = MenuId::new("bucatini-tray-quit");
         let other_id = MenuId::new("some-other-item");
 
-        assert_eq!(action_for(&other_id, &show_id, &usage_id, &quit_id), None);
+        assert_eq!(
+            action_for(&other_id, &show_id, &usage_id, &licenses_id, &quit_id),
+            None
+        );
     }
 }

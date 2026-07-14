@@ -4,6 +4,7 @@
 // so debug builds keep stdout/stderr for troubleshooting).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod licenses;
 mod menu;
 mod theme;
 mod tray;
@@ -18,6 +19,7 @@ use bucatini::ndi::{Finder, Ndi, Receiver, Source};
 use bucatini::output::make_output;
 use bucatini::run::run_capture_loop;
 use eframe::egui;
+use licenses::LicensesWindow;
 use menu::{build_app_menu, AppMenu, MenuAction};
 use theme::install_style;
 use tray::{build_tray, AppTray, TrayAction};
@@ -80,6 +82,7 @@ struct GuiApp {
     /// native menu bar (same failure-tolerance as `tray`).
     app_menu: Option<AppMenu>,
     usage: UsageWindow,
+    licenses: LicensesWindow,
     /// Set to `true` when the user chooses Quit from the tray menu so the
     /// close-interceptor lets the `Close` command through instead of hiding.
     quitting: bool,
@@ -102,6 +105,7 @@ impl GuiApp {
             tray: build_tray().ok(),
             app_menu: build_app_menu().ok(),
             usage: UsageWindow::default(),
+            licenses: LicensesWindow::default(),
             quitting: false,
             fit_h: 0.0,
         };
@@ -262,6 +266,9 @@ impl GuiApp {
                 (Some(TrayAction::Show), _) => show_window(ctx),
                 (Some(TrayAction::OpenUsage), _) | (_, Some(MenuAction::OpenUsage)) => {
                     self.usage.request_open(ctx);
+                }
+                (Some(TrayAction::OpenLicenses), _) | (_, Some(MenuAction::OpenLicenses)) => {
+                    self.licenses.request_open(ctx);
                 }
                 (None, None) => {}
             }
@@ -450,6 +457,8 @@ impl eframe::App for GuiApp {
 
         // Self-gated: does nothing when the usage window isn't open.
         self.usage.show(&ctx);
+        // Self-gated: does nothing when the licenses window isn't open.
+        self.licenses.show(&ctx);
     }
 }
 

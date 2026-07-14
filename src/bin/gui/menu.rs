@@ -15,6 +15,7 @@ use muda::{AboutMetadata, Menu, MenuId, MenuItem, PredefinedMenuItem, Submenu};
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum MenuAction {
     OpenUsage,
+    OpenLicenses,
     Quit,
 }
 
@@ -35,9 +36,16 @@ pub fn about_metadata() -> AboutMetadata {
 /// Maps a fired `MenuEvent`'s id to the `MenuAction` it represents. `None`
 /// covers ids muda already handled natively (About) or any id from a menu we
 /// didn't build.
-fn action_for(event_id: &MenuId, usage_id: &MenuId, quit_id: &MenuId) -> Option<MenuAction> {
+fn action_for(
+    event_id: &MenuId,
+    usage_id: &MenuId,
+    licenses_id: &MenuId,
+    quit_id: &MenuId,
+) -> Option<MenuAction> {
     if event_id == usage_id {
         Some(MenuAction::OpenUsage)
+    } else if event_id == licenses_id {
+        Some(MenuAction::OpenLicenses)
     } else if event_id == quit_id {
         Some(MenuAction::Quit)
     } else {
@@ -55,13 +63,14 @@ pub struct AppMenu {
     #[allow(dead_code)]
     menu: Menu,
     usage_id: MenuId,
+    licenses_id: MenuId,
     quit_id: MenuId,
 }
 
 impl AppMenu {
     /// Maps a fired `MenuEvent`'s id to this menu's `MenuAction`, if any.
     pub fn action_for(&self, id: &MenuId) -> Option<MenuAction> {
-        action_for(id, &self.usage_id, &self.quit_id)
+        action_for(id, &self.usage_id, &self.licenses_id, &self.quit_id)
     }
 }
 
@@ -94,6 +103,14 @@ pub fn build_app_menu() -> Result<AppMenu, muda::Error> {
         Some(quit_accelerator),
     );
 
+    let licenses_id = MenuId::new("bucatini-licenses");
+    let licenses_item = MenuItem::with_id(
+        licenses_id.clone(),
+        "Open Source Licenses\u{2026}",
+        true,
+        None,
+    );
+
     let app_submenu = Submenu::with_items(
         "bucatini",
         true,
@@ -103,7 +120,7 @@ pub fn build_app_menu() -> Result<AppMenu, muda::Error> {
             &quit_item,
         ],
     )?;
-    let help_submenu = Submenu::with_items("Help", true, &[&usage_item])?;
+    let help_submenu = Submenu::with_items("Help", true, &[&usage_item, &licenses_item])?;
 
     let menu = Menu::with_items(&[&app_submenu, &help_submenu])?;
 
@@ -113,6 +130,7 @@ pub fn build_app_menu() -> Result<AppMenu, muda::Error> {
     Ok(AppMenu {
         menu,
         usage_id,
+        licenses_id,
         quit_id,
     })
 }
@@ -142,21 +160,35 @@ mod tests {
     #[test]
     fn action_for_maps_the_usage_id_to_open_usage() {
         let usage_id = MenuId::new("bucatini-usage");
+        let licenses_id = MenuId::new("bucatini-licenses");
         let quit_id = MenuId::new("bucatini-quit");
 
         assert_eq!(
-            action_for(&usage_id, &usage_id, &quit_id),
+            action_for(&usage_id, &usage_id, &licenses_id, &quit_id),
             Some(MenuAction::OpenUsage)
+        );
+    }
+
+    #[test]
+    fn action_for_maps_the_licenses_id_to_open_licenses() {
+        let usage_id = MenuId::new("bucatini-usage");
+        let licenses_id = MenuId::new("bucatini-licenses");
+        let quit_id = MenuId::new("bucatini-quit");
+
+        assert_eq!(
+            action_for(&licenses_id, &usage_id, &licenses_id, &quit_id),
+            Some(MenuAction::OpenLicenses)
         );
     }
 
     #[test]
     fn action_for_maps_the_quit_id_to_quit() {
         let usage_id = MenuId::new("bucatini-usage");
+        let licenses_id = MenuId::new("bucatini-licenses");
         let quit_id = MenuId::new("bucatini-quit");
 
         assert_eq!(
-            action_for(&quit_id, &usage_id, &quit_id),
+            action_for(&quit_id, &usage_id, &licenses_id, &quit_id),
             Some(MenuAction::Quit)
         );
     }
@@ -164,9 +196,13 @@ mod tests {
     #[test]
     fn action_for_ignores_ids_it_does_not_recognize() {
         let usage_id = MenuId::new("bucatini-usage");
+        let licenses_id = MenuId::new("bucatini-licenses");
         let quit_id = MenuId::new("bucatini-quit");
         let other_id = MenuId::new("some-other-item");
 
-        assert_eq!(action_for(&other_id, &usage_id, &quit_id), None);
+        assert_eq!(
+            action_for(&other_id, &usage_id, &licenses_id, &quit_id),
+            None
+        );
     }
 }
