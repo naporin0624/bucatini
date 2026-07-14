@@ -4,6 +4,9 @@
 // so debug builds keep stdout/stderr for troubleshooting).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod theme;
+mod tray;
+
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver as MpscReceiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -13,130 +16,10 @@ use bucatini::ndi::{Finder, Ndi, Receiver, Source};
 use bucatini::output::make_output;
 use bucatini::run::run_capture_loop;
 use eframe::egui;
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
-use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
-
-/// Owns the tray icon + the handles needed to update/route its menu.
-struct TrayState {
-    _icon: TrayIcon,
-    status: MenuItem,
-    quit_id: MenuId,
-}
-
-/// A tiny solid accent-blue square icon (32x32 RGBA), generated in code.
-fn tray_icon_image() -> tray_icon::Icon {
-    const N: u32 = 32;
-    let mut rgba = Vec::with_capacity((N * N * 4) as usize);
-    for _ in 0..(N * N) {
-        rgba.extend_from_slice(&[0x39, 0x96, 0xFF, 0xFF]);
-    }
-    tray_icon::Icon::from_rgba(rgba, N, N).expect("valid 32x32 RGBA icon")
-}
-
-/// Build the tray icon with a status line and Quit. Returns None on failure
-/// (the app still runs windowed without a tray).
-fn build_tray() -> Option<TrayState> {
-    let menu = Menu::new();
-    let status = MenuItem::new("Idle", true, None);
-    let quit = MenuItem::new("Quit", true, None);
-    menu.append(&status).ok()?;
-    menu.append(&PredefinedMenuItem::separator()).ok()?;
-    menu.append(&quit).ok()?;
-    let icon = TrayIconBuilder::new()
-        .with_tooltip("Bucatini")
-        .with_icon(tray_icon_image())
-        .with_menu(Box::new(menu))
-        .build()
-        .ok()?;
-    Some(TrayState {
-        _icon: icon,
-        status,
-        quit_id: quit.id().clone(),
-    })
-}
-
-/// Install the bundled LINE Seed JP font and the cannelloni dark theme.
-fn install_style(ctx: &egui::Context) {
-    use std::sync::Arc;
-
-    // --- Fonts: LINE Seed JP as the primary proportional face, keeping
-    //     egui's default fonts (incl. emoji) as fallbacks. ---
-    let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "LINESeedJP".to_owned(),
-        Arc::new(egui::FontData::from_static(include_bytes!(
-            "../../vendor/fonts/LINESeedJP-Regular.ttf"
-        ))),
-    );
-    fonts
-        .families
-        .entry(egui::FontFamily::Proportional)
-        .or_default()
-        .insert(0, "LINESeedJP".to_owned());
-    fonts
-        .families
-        .entry(egui::FontFamily::Monospace)
-        .or_default()
-        .push("LINESeedJP".to_owned());
-    ctx.set_fonts(fonts);
-
-    // --- Theme: cannelloni (dark, neo-brutalist: 0 corners, visible borders, no shadow). ---
-    use egui::{Color32, CornerRadius, Stroke};
-    let canvas = Color32::from_rgb(0x12, 0x12, 0x12);
-    let surface = Color32::from_rgb(0x1C, 0x1C, 0x1C);
-    let muted = Color32::from_rgb(0x26, 0x26, 0x26);
-    let emphasis = Color32::from_rgb(0x2E, 0x2E, 0x2E);
-    let text = Color32::from_rgb(0xEE, 0xEF, 0xF2);
-    let text_muted = Color32::from_rgb(0xC9, 0xCC, 0xD2);
-    let border = Color32::from_rgb(0x69, 0x69, 0x69);
-    let border_subtle = Color32::from_rgb(0x69, 0x69, 0x69);
-    let border_strong = Color32::from_rgb(0x86, 0x86, 0x86);
-    let accent = Color32::from_rgb(0x39, 0x96, 0xFF);
-
-    let mut v = egui::Visuals::dark();
-    v.panel_fill = canvas;
-    v.window_fill = canvas;
-    v.faint_bg_color = surface;
-    v.extreme_bg_color = surface;
-    v.window_shadow = egui::epaint::Shadow::NONE;
-    v.popup_shadow = egui::epaint::Shadow::NONE;
-    v.window_corner_radius = CornerRadius::ZERO;
-    v.menu_corner_radius = CornerRadius::ZERO;
-    v.hyperlink_color = accent;
-    v.selection.bg_fill = accent.gamma_multiply(0.45);
-    v.selection.stroke = Stroke::new(1.0, accent);
-
-    let w = &mut v.widgets;
-    // noninteractive: labels / panel
-    w.noninteractive.bg_fill = canvas;
-    w.noninteractive.weak_bg_fill = canvas;
-    w.noninteractive.bg_stroke = Stroke::new(1.0, border_subtle);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, text_muted);
-    w.noninteractive.corner_radius = CornerRadius::ZERO;
-    // inactive: idle buttons / combo
-    w.inactive.bg_fill = surface;
-    w.inactive.weak_bg_fill = surface;
-    w.inactive.bg_stroke = Stroke::new(1.0, border);
-    w.inactive.fg_stroke = Stroke::new(1.0, text);
-    w.inactive.corner_radius = CornerRadius::ZERO;
-    // hovered
-    w.hovered.bg_fill = muted;
-    w.hovered.weak_bg_fill = muted;
-    w.hovered.bg_stroke = Stroke::new(1.0, border_strong);
-    w.hovered.fg_stroke = Stroke::new(1.0, text);
-    w.hovered.corner_radius = CornerRadius::ZERO;
-    // active (pressed) + open (combo open)
-    for wv in [&mut w.active, &mut w.open] {
-        wv.bg_fill = emphasis;
-        wv.weak_bg_fill = emphasis;
-        wv.bg_stroke = Stroke::new(1.0, accent);
-        wv.fg_stroke = Stroke::new(1.0, text);
-        wv.corner_radius = CornerRadius::ZERO;
-    }
-
-    ctx.set_visuals(v);
-    ctx.global_style_mut(|s| s.spacing.item_spacing = egui::vec2(8.0, 8.0));
-}
+use theme::install_style;
+use tray::{build_tray, TrayState};
+use tray_icon::menu::MenuEvent;
+use tray_icon::TrayIconEvent;
 
 /// Result of one discovery pass, sent from the worker to the UI.
 enum DiscoverMsg {
@@ -574,7 +457,7 @@ fn main() -> eframe::Result {
     // Window / Dock / taskbar icon, decoded from the bundled app icon PNG.
     // Skip silently if decoding ever fails — the app still runs without an icon.
     if let Ok(icon) =
-        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/icon/bucatini-1024.png"))
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon/bucatini-1024.png"))
     {
         viewport = viewport.with_icon(icon);
     }
