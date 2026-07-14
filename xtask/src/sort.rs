@@ -1,9 +1,14 @@
 use crate::license_entry::LicenseEntry;
 
-/// Sorts by `(category, name)`. `Vec::sort_by` is documented-stable in std, so ties (equal
-/// category and name) keep their relative input order without extra bookkeeping.
+/// Sorts by `(category, name, version)`. `Vec::sort_by` is documented-stable in std, so any
+/// remaining ties (equal category, name, and version) keep their relative input order without
+/// extra bookkeeping.
 pub fn sort_entries(mut entries: Vec<LicenseEntry>) -> Vec<LicenseEntry> {
-    entries.sort_by(|a, b| (a.category, &a.name).cmp(&(b.category, &b.name)));
+    entries.sort_by(|a, b| {
+        (a.category, &a.name)
+            .cmp(&(b.category, &b.name))
+            .then_with(|| a.version.cmp(&b.version))
+    });
     entries
 }
 
@@ -50,16 +55,28 @@ mod tests {
     }
 
     #[test]
-    fn stable_sort_preserves_relative_order_for_equal_keys() {
+    fn same_name_entries_break_ties_by_version_ascending() {
         let mut first = entry("dup", LicenseCategory::Library);
         first.version = Some("1.0.0".to_string());
         let mut second = entry("dup", LicenseCategory::Library);
         second.version = Some("2.0.0".to_string());
 
-        let sorted = sort_entries(vec![first.clone(), second.clone()]);
+        // Feed them in descending version order so a pass would only succeed via the
+        // explicit version tiebreak, not by coincidentally matching input order.
+        let sorted = sort_entries(vec![second.clone(), first.clone()]);
 
         assert_eq!(sorted[0].version, first.version);
         assert_eq!(sorted[1].version, second.version);
+    }
+
+    #[test]
+    fn stable_sort_preserves_relative_order_for_fully_equal_keys() {
+        let first = entry("dup", LicenseCategory::Library);
+        let second = entry("dup", LicenseCategory::Library);
+
+        let sorted = sort_entries(vec![first.clone(), second.clone()]);
+
+        assert_eq!(sorted, vec![first, second]);
     }
 
     #[test]

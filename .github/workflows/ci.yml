@@ -43,7 +43,7 @@ jobs:
       - uses: Swatinem/rust-cache@v2
 
       - name: Install cargo-bundle-licenses
-        run: cargo install cargo-bundle-licenses --locked
+        run: cargo install cargo-bundle-licenses --version 4.2.0 --locked
 
       - name: Check license manifest is up to date
         run: cargo xtask gen-licenses --check

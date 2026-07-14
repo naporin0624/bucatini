@@ -11442,7 +11442,7 @@ DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 
-core-foundation 0.9.4
+core-foundation 0.10.1
 MIT OR Apache-2.0
 https://github.com/servo/core-foundation-rs
 
@@ -11684,7 +11684,7 @@ limitations under the License.
 
 ================================================================================
 
-core-foundation 0.10.1
+core-foundation 0.9.4
 MIT OR Apache-2.0
 https://github.com/servo/core-foundation-rs
 
@@ -30746,7 +30746,7 @@ SOFTWARE.
 
 ================================================================================
 
-linux-raw-sys 0.4.15
+linux-raw-sys 0.12.1
 Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 https://github.com/sunfishcode/linux-raw-sys
 
@@ -31212,7 +31212,7 @@ DEALINGS IN THE SOFTWARE.
 
 ================================================================================
 
-linux-raw-sys 0.12.1
+linux-raw-sys 0.4.15
 Apache-2.0 WITH LLVM-exception OR Apache-2.0 OR MIT
 https://github.com/sunfishcode/linux-raw-sys
 
