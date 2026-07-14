@@ -4,8 +4,10 @@
 // so debug builds keep stdout/stderr for troubleshooting).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod menu;
 mod theme;
 mod tray;
+mod usage;
 
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver as MpscReceiver, Sender};
@@ -16,10 +18,12 @@ use bucatini::ndi::{Finder, Ndi, Receiver, Source};
 use bucatini::output::make_output;
 use bucatini::run::run_capture_loop;
 use eframe::egui;
+use menu::{build_app_menu, AppMenu, MenuAction};
 use theme::install_style;
-use tray::{build_tray, TrayState};
+use tray::{build_tray, AppTray, TrayAction};
 use tray_icon::menu::MenuEvent;
 use tray_icon::TrayIconEvent;
+use usage::UsageWindow;
 
 /// Result of one discovery pass, sent from the worker to the UI.
 enum DiscoverMsg {
@@ -71,7 +75,11 @@ struct GuiApp {
     discovering: bool,
     disco_rx: Option<MpscReceiver<DiscoverMsg>>,
     running: Option<RunHandle>,
-    tray: Option<TrayState>,
+    tray: Option<AppTray>,
+    /// `None` when `build_app_menu` failed — the app still runs without a
+    /// native menu bar (same failure-tolerance as `tray`).
+    app_menu: Option<AppMenu>,
+    usage: UsageWindow,
     /// Set to `true` when the user chooses Quit from the tray menu so the
     /// close-interceptor lets the `Close` command through instead of hiding.
     quitting: bool,
@@ -82,6 +90,8 @@ struct GuiApp {
 impl GuiApp {
     fn new(ctx: &egui::Context) -> Self {
         install_style(ctx);
+        // eframe has already created NSApplication by the time `new` runs, so
+        // installing the app menu here (rather than in `main`) is safe on macOS.
         let mut app = GuiApp {
             sources: Vec::new(),
             selected: 0,
@@ -89,7 +99,9 @@ impl GuiApp {
             discovering: false,
             disco_rx: None,
             running: None,
-            tray: build_tray(),
+            tray: build_tray().ok(),
+            app_menu: build_app_menu().ok(),
+            usage: UsageWindow::default(),
             quitting: false,
             fit_h: 0.0,
         };
@@ -238,15 +250,20 @@ impl GuiApp {
         }
     }
 
-    fn handle_tray_events(&mut self, ctx: &egui::Context) {
-        // Quit / show from the tray menu.
+    /// Drains the one global `MenuEvent` channel that both the tray menu and
+    /// the native app menu bar post to (see `tray.rs`'s module doc), plus the
+    /// separate tray click channel.
+    fn poll_native_events(&mut self, ctx: &egui::Context) {
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
-            let is_quit = self.tray.as_ref().is_some_and(|t| ev.id == t.quit_id);
-            let is_show = self.tray.as_ref().is_some_and(|t| ev.id == t.status.id());
-            if is_quit {
-                self.quit(ctx);
-            } else if is_show {
-                show_window(ctx);
+            let tray_action = self.tray.as_ref().and_then(|t| t.action_for(&ev.id));
+            let menu_action = self.app_menu.as_ref().and_then(|m| m.action_for(&ev.id));
+            match (tray_action, menu_action) {
+                (Some(TrayAction::Quit), _) => self.quit(ctx),
+                (Some(TrayAction::Show), _) => show_window(ctx),
+                (Some(TrayAction::OpenUsage), _) | (_, Some(MenuAction::OpenUsage)) => {
+                    self.usage.request_open(ctx);
+                }
+                (None, None) => {}
             }
         }
         // Left-click / double-click on the tray icon → show the window.
@@ -422,7 +439,7 @@ impl eframe::App for GuiApp {
 
         self.handle_quit_shortcut(&ctx);
         self.handle_close_to_tray(&ctx);
-        self.handle_tray_events(&ctx);
+        self.poll_native_events(&ctx);
 
         self.draw_header(ui);
         self.draw_source_row(ui, &ctx);
@@ -430,6 +447,9 @@ impl eframe::App for GuiApp {
         self.draw_status(ui);
         self.sync_tray_status();
         self.fit_window(ui, &ctx);
+
+        // Self-gated: does nothing when the usage window isn't open.
+        self.usage.show(&ctx);
     }
 }
 

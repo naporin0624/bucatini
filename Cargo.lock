@@ -567,7 +567,10 @@ dependencies = [
  "ctrlc",
  "eframe",
  "libc",
+ "muda",
+ "png",
  "rusty-hook",
+ "thiserror 1.0.69",
  "tray-icon",
 ]
 
