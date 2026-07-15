@@ -4,6 +4,12 @@
 // so debug builds keep stdout/stderr for troubleshooting).
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod licenses;
+mod menu;
+mod theme;
+mod tray;
+mod usage;
+
 use std::sync::atomic::{AtomicBool, AtomicU64, Ordering};
 use std::sync::mpsc::{self, Receiver as MpscReceiver, Sender};
 use std::sync::{Arc, Mutex};
@@ -13,130 +19,15 @@ use bucatini::ndi::{Finder, Ndi, Receiver, Source};
 use bucatini::output::make_output;
 use bucatini::run::run_capture_loop;
 use eframe::egui;
-use tray_icon::menu::{Menu, MenuEvent, MenuId, MenuItem, PredefinedMenuItem};
-use tray_icon::{TrayIcon, TrayIconBuilder, TrayIconEvent};
-
-/// Owns the tray icon + the handles needed to update/route its menu.
-struct TrayState {
-    _icon: TrayIcon,
-    status: MenuItem,
-    quit_id: MenuId,
-}
-
-/// A tiny solid accent-blue square icon (32x32 RGBA), generated in code.
-fn tray_icon_image() -> tray_icon::Icon {
-    const N: u32 = 32;
-    let mut rgba = Vec::with_capacity((N * N * 4) as usize);
-    for _ in 0..(N * N) {
-        rgba.extend_from_slice(&[0x39, 0x96, 0xFF, 0xFF]);
-    }
-    tray_icon::Icon::from_rgba(rgba, N, N).expect("valid 32x32 RGBA icon")
-}
-
-/// Build the tray icon with a status line and Quit. Returns None on failure
-/// (the app still runs windowed without a tray).
-fn build_tray() -> Option<TrayState> {
-    let menu = Menu::new();
-    let status = MenuItem::new("Idle", true, None);
-    let quit = MenuItem::new("Quit", true, None);
-    menu.append(&status).ok()?;
-    menu.append(&PredefinedMenuItem::separator()).ok()?;
-    menu.append(&quit).ok()?;
-    let icon = TrayIconBuilder::new()
-        .with_tooltip("Bucatini")
-        .with_icon(tray_icon_image())
-        .with_menu(Box::new(menu))
-        .build()
-        .ok()?;
-    Some(TrayState {
-        _icon: icon,
-        status,
-        quit_id: quit.id().clone(),
-    })
-}
-
-/// Install the bundled LINE Seed JP font and the cannelloni dark theme.
-fn install_style(ctx: &egui::Context) {
-    use std::sync::Arc;
-
-    // --- Fonts: LINE Seed JP as the primary proportional face, keeping
-    //     egui's default fonts (incl. emoji) as fallbacks. ---
-    let mut fonts = egui::FontDefinitions::default();
-    fonts.font_data.insert(
-        "LINESeedJP".to_owned(),
-        Arc::new(egui::FontData::from_static(include_bytes!(
-            "../../vendor/fonts/LINESeedJP-Regular.ttf"
-        ))),
-    );
-    fonts
-        .families
-        .entry(egui::FontFamily::Proportional)
-        .or_default()
-        .insert(0, "LINESeedJP".to_owned());
-    fonts
-        .families
-        .entry(egui::FontFamily::Monospace)
-        .or_default()
-        .push("LINESeedJP".to_owned());
-    ctx.set_fonts(fonts);
-
-    // --- Theme: cannelloni (dark, neo-brutalist: 0 corners, visible borders, no shadow). ---
-    use egui::{Color32, CornerRadius, Stroke};
-    let canvas = Color32::from_rgb(0x12, 0x12, 0x12);
-    let surface = Color32::from_rgb(0x1C, 0x1C, 0x1C);
-    let muted = Color32::from_rgb(0x26, 0x26, 0x26);
-    let emphasis = Color32::from_rgb(0x2E, 0x2E, 0x2E);
-    let text = Color32::from_rgb(0xEE, 0xEF, 0xF2);
-    let text_muted = Color32::from_rgb(0xC9, 0xCC, 0xD2);
-    let border = Color32::from_rgb(0x69, 0x69, 0x69);
-    let border_subtle = Color32::from_rgb(0x69, 0x69, 0x69);
-    let border_strong = Color32::from_rgb(0x86, 0x86, 0x86);
-    let accent = Color32::from_rgb(0x39, 0x96, 0xFF);
-
-    let mut v = egui::Visuals::dark();
-    v.panel_fill = canvas;
-    v.window_fill = canvas;
-    v.faint_bg_color = surface;
-    v.extreme_bg_color = surface;
-    v.window_shadow = egui::epaint::Shadow::NONE;
-    v.popup_shadow = egui::epaint::Shadow::NONE;
-    v.window_corner_radius = CornerRadius::ZERO;
-    v.menu_corner_radius = CornerRadius::ZERO;
-    v.hyperlink_color = accent;
-    v.selection.bg_fill = accent.gamma_multiply(0.45);
-    v.selection.stroke = Stroke::new(1.0, accent);
-
-    let w = &mut v.widgets;
-    // noninteractive: labels / panel
-    w.noninteractive.bg_fill = canvas;
-    w.noninteractive.weak_bg_fill = canvas;
-    w.noninteractive.bg_stroke = Stroke::new(1.0, border_subtle);
-    w.noninteractive.fg_stroke = Stroke::new(1.0, text_muted);
-    w.noninteractive.corner_radius = CornerRadius::ZERO;
-    // inactive: idle buttons / combo
-    w.inactive.bg_fill = surface;
-    w.inactive.weak_bg_fill = surface;
-    w.inactive.bg_stroke = Stroke::new(1.0, border);
-    w.inactive.fg_stroke = Stroke::new(1.0, text);
-    w.inactive.corner_radius = CornerRadius::ZERO;
-    // hovered
-    w.hovered.bg_fill = muted;
-    w.hovered.weak_bg_fill = muted;
-    w.hovered.bg_stroke = Stroke::new(1.0, border_strong);
-    w.hovered.fg_stroke = Stroke::new(1.0, text);
-    w.hovered.corner_radius = CornerRadius::ZERO;
-    // active (pressed) + open (combo open)
-    for wv in [&mut w.active, &mut w.open] {
-        wv.bg_fill = emphasis;
-        wv.weak_bg_fill = emphasis;
-        wv.bg_stroke = Stroke::new(1.0, accent);
-        wv.fg_stroke = Stroke::new(1.0, text);
-        wv.corner_radius = CornerRadius::ZERO;
-    }
-
-    ctx.set_visuals(v);
-    ctx.global_style_mut(|s| s.spacing.item_spacing = egui::vec2(8.0, 8.0));
-}
+use licenses::LicensesWindow;
+#[cfg(target_os = "macos")]
+use menu::build_app_menu;
+use menu::{AppMenu, MenuAction};
+use theme::install_style;
+use tray::{build_tray, AppTray, TrayAction};
+use tray_icon::menu::MenuEvent;
+use tray_icon::TrayIconEvent;
+use usage::UsageWindow;
 
 /// Result of one discovery pass, sent from the worker to the UI.
 enum DiscoverMsg {
@@ -188,7 +79,13 @@ struct GuiApp {
     discovering: bool,
     disco_rx: Option<MpscReceiver<DiscoverMsg>>,
     running: Option<RunHandle>,
-    tray: Option<TrayState>,
+    tray: Option<AppTray>,
+    /// `None` when `build_app_menu` failed — the app still runs without a
+    /// native menu bar (same failure-tolerance as `tray`) — or unconditionally
+    /// on non-macOS, where no native menu bar is installed at all (see `new`).
+    app_menu: Option<AppMenu>,
+    usage: UsageWindow,
+    licenses: LicensesWindow,
     /// Set to `true` when the user chooses Quit from the tray menu so the
     /// close-interceptor lets the `Close` command through instead of hiding.
     quitting: bool,
@@ -199,6 +96,17 @@ struct GuiApp {
 impl GuiApp {
     fn new(ctx: &egui::Context) -> Self {
         install_style(ctx);
+        // eframe has already created NSApplication by the time `new` runs, so
+        // installing the app menu here (rather than in `main`) is safe on macOS.
+        // Elsewhere (Windows/Linux) there is no NSApp main menu to install into,
+        // so `app_menu` stays `None` and `poll_native_events` below never has an
+        // `AppMenu` to route accelerators through — the field itself stays
+        // unconditional so that routing code doesn't need its own cfg split.
+        #[cfg(target_os = "macos")]
+        let app_menu = build_app_menu().ok();
+        #[cfg(not(target_os = "macos"))]
+        let app_menu = None;
+
         let mut app = GuiApp {
             sources: Vec::new(),
             selected: 0,
@@ -206,7 +114,10 @@ impl GuiApp {
             discovering: false,
             disco_rx: None,
             running: None,
-            tray: build_tray(),
+            tray: build_tray().ok(),
+            app_menu,
+            usage: UsageWindow::default(),
+            licenses: LicensesWindow::default(),
             quitting: false,
             fit_h: 0.0,
         };
@@ -355,15 +266,23 @@ impl GuiApp {
         }
     }
 
-    fn handle_tray_events(&mut self, ctx: &egui::Context) {
-        // Quit / show from the tray menu.
+    /// Drains the one global `MenuEvent` channel that both the tray menu and
+    /// the native app menu bar post to (see `tray.rs`'s module doc), plus the
+    /// separate tray click channel.
+    fn poll_native_events(&mut self, ctx: &egui::Context) {
         while let Ok(ev) = MenuEvent::receiver().try_recv() {
-            let is_quit = self.tray.as_ref().is_some_and(|t| ev.id == t.quit_id);
-            let is_show = self.tray.as_ref().is_some_and(|t| ev.id == t.status.id());
-            if is_quit {
-                self.quit(ctx);
-            } else if is_show {
-                show_window(ctx);
+            let tray_action = self.tray.as_ref().and_then(|t| t.action_for(&ev.id));
+            let menu_action = self.app_menu.as_ref().and_then(|m| m.action_for(&ev.id));
+            match (tray_action, menu_action) {
+                (Some(TrayAction::Quit), _) | (_, Some(MenuAction::Quit)) => self.quit(ctx),
+                (Some(TrayAction::Show), _) => show_window(ctx),
+                (Some(TrayAction::OpenUsage), _) | (_, Some(MenuAction::OpenUsage)) => {
+                    self.usage.request_open(ctx);
+                }
+                (Some(TrayAction::OpenLicenses), _) | (_, Some(MenuAction::OpenLicenses)) => {
+                    self.licenses.request_open(ctx);
+                }
+                (None, None) => {}
             }
         }
         // Left-click / double-click on the tray icon → show the window.
@@ -439,11 +358,8 @@ impl GuiApp {
     }
 
     fn draw_status(&self, ui: &mut egui::Ui) {
-        use egui::{Color32, RichText};
-        const ACCENT: Color32 = Color32::from_rgb(0x39, 0x96, 0xFF);
-        const TEXT: Color32 = Color32::from_rgb(0xEE, 0xEF, 0xF2);
-        const TEXT_MUTED: Color32 = Color32::from_rgb(0xC9, 0xCC, 0xD2);
-        const TEXT_DIM: Color32 = Color32::from_rgb(0x9E, 0x9E, 0x9E);
+        use egui::RichText;
+        use theme::tokens::{ACCENT, TEXT, TEXT_DIM, TEXT_MUTED};
 
         if let Some(handle) = &self.running {
             let frames = handle.shared.frames.load(Ordering::SeqCst);
@@ -539,7 +455,7 @@ impl eframe::App for GuiApp {
 
         self.handle_quit_shortcut(&ctx);
         self.handle_close_to_tray(&ctx);
-        self.handle_tray_events(&ctx);
+        self.poll_native_events(&ctx);
 
         self.draw_header(ui);
         self.draw_source_row(ui, &ctx);
@@ -547,6 +463,11 @@ impl eframe::App for GuiApp {
         self.draw_status(ui);
         self.sync_tray_status();
         self.fit_window(ui, &ctx);
+
+        // Self-gated: does nothing when the usage window isn't open.
+        self.usage.show(&ctx);
+        // Self-gated: does nothing when the licenses window isn't open.
+        self.licenses.show(&ctx);
     }
 }
 
@@ -574,7 +495,7 @@ fn main() -> eframe::Result {
     // Window / Dock / taskbar icon, decoded from the bundled app icon PNG.
     // Skip silently if decoding ever fails — the app still runs without an icon.
     if let Ok(icon) =
-        eframe::icon_data::from_png_bytes(include_bytes!("../../assets/icon/bucatini-1024.png"))
+        eframe::icon_data::from_png_bytes(include_bytes!("../../../assets/icon/bucatini-1024.png"))
     {
         viewport = viewport.with_icon(icon);
     }

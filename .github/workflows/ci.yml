@@ -27,3 +27,23 @@ jobs:
 
       - name: Format check
         run: cargo fmt --all -- --check
+
+  license-check:
+    name: License manifest freshness
+    # `cargo metadata` (which cargo-bundle-licenses drives) resolves the full Cargo.lock
+    # dependency graph, including macOS/Windows-only packages, regardless of host platform,
+    # so this needs no Syphon/libndi toolchain and stays on a cheap Linux runner.
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: dtolnay/rust-toolchain@stable
+
+      - uses: Swatinem/rust-cache@v2
+
+      - name: Install cargo-bundle-licenses
+        run: cargo install cargo-bundle-licenses --version 4.2.0 --locked
+
+      - name: Check license manifest is up to date
+        run: cargo xtask gen-licenses --check

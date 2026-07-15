@@ -1,0 +1,34 @@
+[
+  {
+    "name": "Syphon Framework",
+    "version": null,
+    "license": "BSD-3-Clause",
+    "text": "Copyright 2010 bangnoise (Tom Butterworth) & vade (Anton Marini).\nAll rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n* Redistributions of source code must retain the above copyright\nnotice, this list of conditions and the following disclaimer.\n\n* Redistributions in binary form must reproduce the above copyright\nnotice, this list of conditions and the following disclaimer in the\ndocumentation and/or other materials provided with the distribution.\n\n* Neither the name of the Syphon Project nor the names of its contributors\nmay be used to endorse or promote products derived from this software\nwithout specific prior written permission.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\nANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\nWARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDERS BE LIABLE FOR ANY\nDIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES\n(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;\nLOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND\nON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT\n(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS\nSOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.",
+    "homepage": "https://github.com/Syphon/Syphon-Framework",
+    "category": "native"
+  },
+  {
+    "name": "Spout2 SDK",
+    "version": null,
+    "license": "BSD-2-Clause",
+    "text": "Copyright (c) 2014-2024, Lynn Jarvis. All rights reserved.\n\nRedistribution and use in source and binary forms, with or without\nmodification, are permitted provided that the following conditions are met:\n\n1. Redistributions of source code must retain the above copyright notice,\nthis list of conditions and the following disclaimer.\n\n2. Redistributions in binary form must reproduce the above copyright notice,\nthis list of conditions and the following disclaimer in the documentation\nand/or other materials provided with the distribution.\n\nTHIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS \"AS IS\" AND\nANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED\nWARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE\nDISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE\nFOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL\nDAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR\nSERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER\nCAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,\nOR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE\nOF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.\n\nThe Spout2 SDK source is fetched into vendor/Spout2 at build time by\nscripts/fetch-spout2.ps1 and is not redistributed in this repository. See the\nSpout2 source for the authoritative license text.",
+    "homepage": "https://github.com/leadedge/Spout2",
+    "category": "native"
+  },
+  {
+    "name": "NDI",
+    "version": null,
+    "license": "Proprietary runtime (not redistributed)",
+    "text": "NDI(R) is a registered trademark of Vizrt NV. This tool links against the NDI\nruntime (libndi / Processing.NDI.Lib) installed separately by the user; no NDI\nSDK code is redistributed here.",
+    "homepage": null,
+    "category": "native"
+  },
+  {
+    "name": "LINE Seed JP",
+    "version": null,
+    "license": "OFL-1.1",
+    "text": "The GUI (bucatini-gui) bundles the \"LINE Seed JP\" typeface, fetched at build\ntime by scripts/fetch-fonts.sh from https://github.com/line/seed and embedded\ninto the GUI binary. LINE Seed is licensed under the SIL Open Font License,\nVersion 1.1. See vendor/fonts/LICENSE (produced by the fetch script) for the\nfull text. \"LINE\" is a trademark of LY Corporation.",
+    "homepage": "https://seed.line.me/",
+    "category": "font"
+  }
+]

@@ -1,3 +1,7 @@
+[workspace]
+members = [".", "xtask"]
+resolver = "2"
+
 [package]
 name = "bucatini"
 version = "0.4.2"
@@ -6,7 +10,15 @@ description = "Receive an NDI source and republish it as a Syphon Metal texture 
 
 [features]
 default = []
-gui = ["dep:eframe", "dep:tray-icon"]
+gui = [
+  "dep:eframe",
+  "dep:tray-icon",
+  "dep:muda",
+  "dep:png",
+  "dep:thiserror",
+  "dep:serde",
+  "dep:serde_json",
+]
 
 [[bin]]
 name = "bucatini"
@@ -14,7 +26,7 @@ path = "src/main.rs"
 
 [[bin]]
 name = "bucatini-gui"
-path = "src/bin/gui.rs"
+path = "src/bin/gui/main.rs"
 required-features = ["gui"]
 
 [lib]
@@ -27,6 +39,14 @@ ctrlc = "3"
 anyhow = "1"
 eframe = { version = "0.35", optional = true }
 tray-icon = { version = "0.24", optional = true }
+# Must match the muda version tray-icon 0.24 re-exports (verified via
+# `cargo tree --features gui -i muda`) so `muda::MenuEvent` and
+# `tray_icon::menu::MenuEvent` are the same type on the same global channel.
+muda = { version = "0.19", optional = true }
+png = { version = "0.18", optional = true }
+thiserror = { version = "1", optional = true }
+serde = { version = "1", features = ["derive"], optional = true }
+serde_json = { version = "1", optional = true }
 
 [build-dependencies]
 cc = "1"
