@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+pub mod discovery;
 pub mod sys;
 
 #[cfg(windows)]
@@ -9,6 +10,7 @@ use anyhow::{anyhow, Result};
 use std::ffi::CStr;
 use std::os::raw::c_char;
 use std::ptr;
+use std::time::Instant;
 
 fn cstr_to_string(p: *const c_char) -> String {
     if p.is_null() {
@@ -64,7 +66,16 @@ impl<'a> Finder<'a> {
     }
 
     pub fn list(&self, timeout_ms: u32) -> Vec<Source> {
-        unsafe { sys::NDIlib_find_wait_for_sources(self.handle, timeout_ms) };
+        // NDIlib_find_wait_for_sources returns as soon as the list changes, so a
+        // single call usually sees only the local loopback source before remote
+        // mDNS announcements arrive.
+        let start = Instant::now();
+        discovery::wait_until_settled(
+            timeout_ms,
+            discovery::DISCOVERY_SETTLE_MS,
+            || u32::try_from(start.elapsed().as_millis()).unwrap_or(u32::MAX),
+            |budget_ms| unsafe { sys::NDIlib_find_wait_for_sources(self.handle, budget_ms) },
+        );
         let mut count: u32 = 0;
         let ptr = unsafe { sys::NDIlib_find_get_current_sources(self.handle, &mut count) };
         if ptr.is_null() || count == 0 {
