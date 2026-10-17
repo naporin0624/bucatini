@@ -1,5 +1,13 @@
 # Changelog
 
+## [0.4.3](https://github.com/naporin0624/bucatini/compare/bucatini-v0.4.2...bucatini-v0.4.3) (2026-10-17)
+
+
+### Bug Fixes
+
+* **ndi:** wait for discovery to settle before listing sources ([ba6fc94](https://github.com/naporin0624/bucatini/commit/ba6fc9493f21afa5f8ae6c8712e8de39101fff9e))
+* **ndi:** wait for discovery to settle before listing sources ([a7ebce9](https://github.com/naporin0624/bucatini/commit/a7ebce9bb3a051b20d8fd468a572594d97648fe2))
+
 ## [0.4.2](https://github.com/naporin0624/bucatini/compare/bucatini-v0.4.1...bucatini-v0.4.2) (2026-07-13)
 
 
